@@ -491,3 +491,17 @@ app.listen(PORT, HOST, () => {
         console.log('No external network interfaces detected. If you expect other devices to connect, ensure you are on a LAN and disable any restrictive firewalls.');
     }
 });
+
+// Write PID file so external tools can stop this specific server process
+try {
+    const pidPath = path.join(__dirname, 'backend.pid');
+    fs.writeFileSync(pidPath, String(process.pid), { encoding: 'utf8' });
+    const cleanupPidFile = () => {
+        try { if (fs.existsSync(pidPath)) fs.unlinkSync(pidPath); } catch (e) { /* ignore */ }
+    };
+    process.on('exit', cleanupPidFile);
+    process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
+    process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
+} catch (err) {
+    console.warn('Could not write PID file for backend process:', err && err.message);
+}

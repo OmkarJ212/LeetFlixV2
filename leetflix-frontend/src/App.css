@@ -152,19 +152,29 @@ body {
   box-shadow: 0 10px 20px rgba(0,0,0,0.4);
 }
 
-.show-poster {
+.poster-wrapper {
   width: 100%;
-  height: auto;
+  /* Portrait poster ratio (2:3). Change if you prefer 3/4 or other. */
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0f0f12, #1a1a2a);
+  display: block;
+}
+
+.poster-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* preserve aspect, crop to fill */
+  object-position: center;
   display: block;
 }
 
 .card-info {
   padding: 15px;
   display: flex;
+  flex-direction: column; /* title on top, actions below */
   justify-content: space-between;
-  align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
 }
 
 .show-title {
@@ -233,18 +243,40 @@ body {
 }
 
 .quiz-container {
-    background-color: #1C1A29;
-    padding: 2rem 2.5rem;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    width: 100%;
-    max-width: 600px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    font-family: 'Poppins', sans-serif;
+  background-color: #1C1A29;
+  padding: 2rem 2.5rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 560px; /* slightly slimmer container per request */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Fixed poster outside the main container */
+.fixed-poster {
+  position: fixed;
+  left: 40px;
+  top: 120px;
+  z-index: 50;
+}
+
+/* Larger poster variation used on SeasonSelection */
+.fixed-poster.large-poster {
+  left: 28px;
+  top: 100px;
+}
+.fixed-poster.large-poster .small-poster {
+  width: 200px;
+  aspect-ratio: 2 / 3;
+}
+
+@media (max-width: 900px) {
+  .fixed-poster { display: none; } /* hide fixed poster on very small screens */
 }
 
 .quiz-header {
@@ -351,6 +383,124 @@ button.next-question-btn:hover, button.reset-quiz-btn:hover {
 .home-button:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(244, 6, 18, 0.5);
+}
+
+/* SeasonSelection layout: poster on the top-left with content to the right (responsive) */
+.season-selection-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: start;
+  max-width: 900px;
+}
+
+.season-left {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.small-poster {
+  width: 140px;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.04);
+  /* Keep poster visible while the seasons list scrolls */
+  position: -webkit-sticky;
+  position: sticky;
+  top: 40px;
+  z-index: 30;
+}
+
+.small-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.season-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Make only the right column (seasons/options) scrollable so the poster stays fixed */
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding-right: 8px; /* give space for scrollbar */
+}
+
+.season-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Improve contrast for season option buttons specifically on the SeasonSelection page */
+.season-options .option {
+  background: linear-gradient(180deg, #3c3247, #2f2636); /* deeper purple gradient */
+  color: #ffffff; /* ensure readable text */
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  text-align: center;
+}
+
+.season-options .option .option-text {
+  color: #ffffff;
+}
+
+.season-options .option:hover {
+  background: linear-gradient(180deg, #5a4663, #463549); /* slightly lighter on hover */
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.55);
+}
+
+@media (max-width: 700px) {
+  .season-selection-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .small-poster {
+    width: 100%;
+    aspect-ratio: 3 / 1.2; /* make a horizontal banner on small screens */
+  }
+}
+
+/* Quiz grid mirrors the SeasonSelection layout */
+.quiz-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: start;
+  width: 100%;
+}
+
+.quiz-container.quiz-grid {
+  max-width: 1100px;
+}
+
+/* Ensure quiz options match season option appearance */
+.quiz-container .season-options .option {
+  background: linear-gradient(180deg, #3c3247, #2f2636);
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  text-align: center;
+}
+
+.quiz-container .season-options .option:hover {
+  background: linear-gradient(180deg, #5a4663, #463549);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.55);
 }
 
 /* Modal and Form Styles */
@@ -488,6 +638,17 @@ button.next-question-btn:hover, button.reset-quiz-btn:hover {
   background-color: #4A4660;
 }
 
+/* Card action row: place buttons side-by-side and align to bottom */
+.card-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.card-info .show-title {
+  margin-bottom: 8px;
+}
+
 .dropdown:hover .dropdown-menu {
   display: block;
 }
@@ -544,3 +705,52 @@ button.next-question-btn:hover, button.reset-quiz-btn:hover {
 }
 
 /* ... [Rest of the app.css code remains unchanged] ... */
+
+/* Slimmer container and per-season row/button styles */
+.slimmer-container {
+  max-width: 520px; /* even slimmer for the season page */
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.season-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.season-label {
+  flex: 1 1 auto;
+  color: #fff;
+  font-weight: 700;
+  padding: 1rem 1.25rem;
+  background: transparent;
+}
+
+.start-season-btn {
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, #f40612, #c20308);
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.start-season-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(244,6,18,0.35);
+}
+
+@media (max-width: 700px) {
+  .fixed-poster.large-poster .small-poster { width: 140px; }
+  .slimmer-container { max-width: 92%; }
+}

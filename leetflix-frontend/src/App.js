@@ -123,7 +123,26 @@ function App() {
 
     const handleSelectSeason = async (showName, seasonName) => {
       const questions = await fetchQuizQuestions(showName, seasonName);
-      setQuizQuestions(questions);
+      // Shuffle questions with Fisher-Yates and take up to 10 for each attempt
+      const shuffleArray = (arr) => {
+        const a = Array.isArray(arr) ? [...arr] : [];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+      const selected = shuffleArray(questions).slice(0, 10);
+      // Also shuffle options for each question so answer order varies
+      const withShuffledOptions = selected.map(q => {
+        const shuffledOptions = shuffleArray(q.options || []);
+        // Keep the original answer string intact (it will match one of the shuffled options)
+        return { ...q, options: shuffledOptions };
+      });
+      setQuizQuestions(withShuffledOptions);
+      // Reset progress for a fresh attempt
+      setIndex(0);
+      setScore(0);
       setQuizStarted(true);
       setIsSelectingSeason(false);
       // NEW: Set the selected season name in state
@@ -255,6 +274,15 @@ function App() {
       if (!currentQuestion) {
         return (
           <div className="quiz-page-container">
+            <div className="fixed-poster">
+              <div className="poster-wrapper small-poster">
+                <img
+                  src={selectedShow.posterUrl}
+                  alt={`${selectedShow.name} poster`}
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }}
+                />
+              </div>
+            </div>
             <div className="quiz-container">
               <h2>Quiz Complete!</h2>
               <p className="question-text">Your score is: {score} / {quizQuestions.length}</p>
@@ -263,9 +291,18 @@ function App() {
           </div>
         );
       }
-      
+
       return (
         <div className="quiz-page-container">
+          <div className="fixed-poster">
+            <div className="poster-wrapper small-poster">
+              <img
+                src={selectedShow.posterUrl}
+                alt={`${selectedShow.name} poster`}
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }}
+              />
+            </div>
+          </div>
           <div className="quiz-container">
             <button type="button" onClick={resetGame} className="home-button">Quit Quiz</button>
             <div className="quiz-header">
@@ -273,7 +310,7 @@ function App() {
               <h2>Question {index + 1} of {quizQuestions.length}</h2>
             </div>
             <p className="question-text">{currentQuestion.question}</p>
-            <div className="options-container">
+            <div className="options-container season-options">
               {currentQuestion.options.map((option, idx) => (
                 <button
                   key={idx}
@@ -334,16 +371,24 @@ function App() {
             />
           </div>
           <div className="show-grid">
-            {isLoading ? (
+              {isLoading ? (
               <p className="loading-message">Loading shows...</p>
             ) : filteredShows.length > 0 ? (
               filteredShows.map((show) => (
                 <div key={show.id} className="show-card">
-                  <img src={show.posterUrl} alt={`${show.name} poster`} className="show-poster" />
+                  <div className="poster-wrapper">
+                    <img
+                      src={show.posterUrl}
+                      alt={`${show.name} poster`}
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }}
+                    />
+                  </div>
                   <div className="card-info">
                     <h3 className="show-title">{show.name}</h3>
-                    <button onClick={() => handleStartQuiz(show)} className="start-quiz-btn">Start Quiz</button>
-                    <button onClick={() => setShowLeaderboard(show.name)} className="view-leaderboard-btn">Leaderboard</button>
+                    <div className="card-actions">
+                      <button onClick={() => setShowLeaderboard(show.name)} className="view-leaderboard-btn">Leaderboard</button>
+                      <button onClick={() => handleStartQuiz(show)} className="start-quiz-btn">Select Season</button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -356,17 +401,19 @@ function App() {
     );
   };
   
+  // If the user is not logged in, show the Login page as the primary view.
+  if (!isLoggedIn) {
+    return (
+      <div className={`app ${isDarkMode ? 'dark-theme' : 'light-theme'}`}>
+        <Login onLogin={handleLogin} onSignup={handleSignup} onAdminLogin={handleAdminLogin} />
+      </div>
+    );
+  }
+
+  // Otherwise render the main application UI.
   return (
     <div className={`app ${isDarkMode ? 'dark-theme' : 'light-theme'}`}>
-      {/* Always render the main app so visitors can browse shows and quizzes without signing in */}
       <MainApp />
-
-      {/* If not logged in, show the Login component (acts as an overlay/modal). Admin-only actions remain hidden */}
-      {!isLoggedIn && (
-        <div className="login-overlay">
-          <Login onLogin={handleLogin} onSignup={handleSignup} onAdminLogin={handleAdminLogin} />
-        </div>
-      )}
     </div>
   );
 }
