@@ -8,7 +8,7 @@ const Leaderboard = ({ showName, onClose }) => {
         const fetchLeaderboard = async () => {
             try {
                 const encodedName = encodeURIComponent(showName);
-                const response = await fetch(`http://localhost:3001/leaderboard/${encodedName}`);
+                const response = await fetch(`/leaderboard/${encodedName}`);
                 if (response.ok) {
                     const data = await response.json();
                     setLeaderboardData(data);

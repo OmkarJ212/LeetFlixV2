@@ -17,7 +17,7 @@ function App() {
 
   const handleSignup = async (username, password) => {
     try {
-      const response = await fetch('http://localhost:3001/signup', {
+  const response = await fetch('/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -36,7 +36,7 @@ function App() {
 
   const handleLogin = async (username, password) => {
     try {
-      const response = await fetch('http://localhost:3001/login', {
+  const response = await fetch('/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -56,7 +56,7 @@ function App() {
   
   const handleAdminLogin = async (username, password, adminKey) => {
       try {
-          const response = await fetch('http://localhost:3001/admin-login', {
+          const response = await fetch('/admin-login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ username, password, adminKey }),
@@ -139,7 +139,7 @@ function App() {
 
     const submitScore = async () => {
         try {
-            await fetch('http://localhost:3001/submit-score', {
+            await fetch('/submit-score', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -173,7 +173,7 @@ function App() {
     const handleAddQuizQuestion = async (newQuestion) => {
       const endpoint = '/add-question';
       try {
-        const response = await fetch(`http://localhost:3001${endpoint}`, {
+  const response = await fetch(`${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newQuestion),
@@ -194,7 +194,7 @@ function App() {
     
     const handleBulkUpload = async (questions) => {
         try {
-            const response = await fetch('http://localhost:3001/bulk-upload', {
+            const response = await fetch('/bulk-upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ questions }),
@@ -358,10 +358,14 @@ function App() {
   
   return (
     <div className={`app ${isDarkMode ? 'dark-theme' : 'light-theme'}`}>
-      {!isLoggedIn ? (
-        <Login onLogin={handleLogin} onSignup={handleSignup} onAdminLogin={handleAdminLogin} />
-      ) : (
-        <MainApp />
+      {/* Always render the main app so visitors can browse shows and quizzes without signing in */}
+      <MainApp />
+
+      {/* If not logged in, show the Login component (acts as an overlay/modal). Admin-only actions remain hidden */}
+      {!isLoggedIn && (
+        <div className="login-overlay">
+          <Login onLogin={handleLogin} onSignup={handleSignup} onAdminLogin={handleAdminLogin} />
+        </div>
       )}
     </div>
   );

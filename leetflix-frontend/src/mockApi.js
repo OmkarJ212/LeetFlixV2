@@ -5,7 +5,7 @@
 // It now fetches the list of shows from your backend API's /shows endpoint.
 export const fetchShows = async () => {
   try {
-    const response = await fetch('http://localhost:3001/shows');
+  const response = await fetch('/shows');
     if (!response.ok) {
       throw new Error('Failed to fetch shows');
     }
@@ -27,7 +27,7 @@ export const fetchQuizQuestions = async (showName, seasonName) => {
     const encodedSeasonName = encodeURIComponent(seasonName);
     
     // The corrected endpoint now includes the season name
-    const response = await fetch(`http://localhost:3001/quizzes/${encodedShowName}/${encodedSeasonName}`);
+  const response = await fetch(`/quizzes/${encodedShowName}/${encodedSeasonName}`);
     
     if (!response.ok) {
         const errorData = await response.json();

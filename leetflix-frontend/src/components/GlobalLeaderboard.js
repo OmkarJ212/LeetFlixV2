@@ -7,7 +7,7 @@ const GlobalLeaderboard = ({ onClose }) => {
     useEffect(() => {
         const fetchGlobalLeaderboard = async () => {
             try {
-                const response = await fetch('http://localhost:3001/global-leaderboard');
+                const response = await fetch('/global-leaderboard');
                 if (response.ok) {
                     const data = await response.json();
                     setLeaderboardData(data);
