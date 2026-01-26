@@ -121,9 +121,9 @@ function App() {
         setIsSelectingSeason(true);
     };
 
-    const handleSelectSeason = async (showName, seasonName) => {
+    const handleSelectSeason = async (showName, seasonName, randomize = false) => {
       const questions = await fetchQuizQuestions(showName, seasonName);
-      // Shuffle questions with Fisher-Yates and take up to 10 for each attempt
+      // Shuffle questions with Fisher-Yates if randomize is enabled, otherwise keep original order
       const shuffleArray = (arr) => {
         const a = Array.isArray(arr) ? [...arr] : [];
         for (let i = a.length - 1; i > 0; i--) {
@@ -132,7 +132,10 @@ function App() {
         }
         return a;
       };
-      const selected = shuffleArray(questions).slice(0, 10);
+      // For "All Questions" season, use all questions; otherwise, take up to 10
+      const isAllQuestions = seasonName.toLowerCase() === 'all questions';
+      const baseQuestions = isAllQuestions ? questions : questions.slice(0, 10);
+      const selected = randomize ? shuffleArray(baseQuestions) : baseQuestions;
       // Also shuffle options for each question so answer order varies
       const withShuffledOptions = selected.map(q => {
         const shuffledOptions = shuffleArray(q.options || []);

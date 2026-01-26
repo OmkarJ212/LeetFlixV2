@@ -78,6 +78,25 @@ app.get('/quizzes/:showName/:seasonName', async (req, res) => {
         const normalizedTargetShow = decodedShowName.trim().toLowerCase();
         const normalizedTargetSeason = decodedSeasonName.trim().toLowerCase();
 
+        // Special case for "All Questions" season to combine all questions from all seasons of the show
+        if (normalizedTargetSeason === "all questions") {
+            let allQuestions = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data && data.showName && data.showName.trim().toLowerCase() === normalizedTargetShow) {
+                    if (data.seasons) {
+                        data.seasons.forEach(season => {
+                            if (season.questions) {
+                                allQuestions = allQuestions.concat(season.questions);
+                            }
+                        });
+                    }
+                }
+            });
+            res.status(200).json(allQuestions);
+            return;
+        }
+
         let foundDoc = null;
         snapshot.forEach(doc => {
             const data = doc.data();

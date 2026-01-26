@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const SeasonSelection = ({ show, onSelectSeason, onBack }) => {
-  // Assume show object has a seasons array
-  const seasons = show.seasons || [{ seasonName: 'All Seasons' }];
+  // State for randomize toggle
+  const [randomize, setRandomize] = useState(false);
+  // Assume show object has a seasons array, add "All Questions" option
+  const seasons = [...(show.seasons || []), { seasonName: 'All Questions' }];
 
   return (
     <div className="quiz-page-container">
@@ -22,6 +24,17 @@ const SeasonSelection = ({ show, onSelectSeason, onBack }) => {
         <div className="quiz-header">
           <h1>{show.name}</h1>
           <h2>Select a Season</h2>
+          {/* Randomize Questions Toggle */}
+          <div className="randomize-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={randomize}
+                onChange={(e) => setRandomize(e.target.checked)}
+              />
+              Randomize Questions
+            </label>
+          </div>
         </div>
         <div className="options-list">
           {seasons.map((season, index) => (
@@ -29,7 +42,7 @@ const SeasonSelection = ({ show, onSelectSeason, onBack }) => {
               <div className="season-label">{season.seasonName}</div>
               <button
                 className="start-season-btn"
-                onClick={() => onSelectSeason(show.name, season.seasonName)}
+                onClick={() => onSelectSeason(show.name, season.seasonName, randomize)}
               >
                 Start Quiz
               </button>
