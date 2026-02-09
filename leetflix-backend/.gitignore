@@ -31,3 +31,5 @@ serviceAccountKey.json
 
 # Misc
 .cache/
+
+.serviceAccountKey
