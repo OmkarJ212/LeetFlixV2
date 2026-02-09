@@ -21,7 +21,7 @@ const db = admin.firestore();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ADMIN_KEY = "your-secret-admin-key"; // CHANGE THIS to your desired key
+const ADMIN_KEY = process.env.ADMIN_KEY; // CHANGE THIS to your desired key
 
 app.use(cors());
 app.use(express.json());
