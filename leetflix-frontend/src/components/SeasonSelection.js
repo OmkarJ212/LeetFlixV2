@@ -1,10 +1,38 @@
 import React, { useState } from 'react';
 
 const SeasonSelection = ({ show, onSelectSeason, onBack }) => {
+  // Helper function to sort seasons numerically
+  const sortSeasons = (seasons) => {
+    return [...seasons].sort((a, b) => {
+      const aName = a.seasonName || '';
+      const bName = b.seasonName || '';
+      
+      // Extract numbers from season names (e.g., "Season 10" -> 10)
+      const aMatch = aName.match(/\d+/);
+      const bMatch = bName.match(/\d+/);
+      
+      const aNum = aMatch ? parseInt(aMatch[0], 10) : null;
+      const bNum = bMatch ? parseInt(bMatch[0], 10) : null;
+      
+      // If both have numbers, sort numerically
+      if (aNum !== null && bNum !== null) {
+        return aNum - bNum;
+      }
+      
+      // If only one has a number, put numbered ones first
+      if (aNum !== null) return -1;
+      if (bNum !== null) return 1;
+      
+      // Otherwise sort alphabetically
+      return aName.localeCompare(bName);
+    });
+  };
+
   // State for randomize toggle
   const [randomize, setRandomize] = useState(false);
-  // Assume show object has a seasons array, add "All Questions" option
-  const seasons = [...(show.seasons || []), { seasonName: 'All Questions' }];
+  // Assume show object has a seasons array, add "All Questions" option and sort
+  const seasonsWithAllQuestions = [...(show.seasons || []), { seasonName: 'All Questions' }];
+  const seasons = sortSeasons(seasonsWithAllQuestions);
 
   return (
     <div className="quiz-page-container">
