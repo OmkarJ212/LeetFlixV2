@@ -35,6 +35,34 @@ if (!fs.existsSync(path.join(staticPath, 'index.html'))) {
     console.warn('Warning: index.html not found in staticPath:', staticPath);
 }
 
+// Helper function to sort seasons numerically instead of alphabetically
+// Handles "Season 1", "Season 10", "All Seasons", "All Questions", etc.
+function sortSeasons(seasons) {
+    return seasons.sort((a, b) => {
+        const aName = a.seasonName || '';
+        const bName = b.seasonName || '';
+        
+        // Extract numbers from season names (e.g., "Season 10" -> 10)
+        const aMatch = aName.match(/\d+/);
+        const bMatch = bName.match(/\d+/);
+        
+        const aNum = aMatch ? parseInt(aMatch[0], 10) : null;
+        const bNum = bMatch ? parseInt(bMatch[0], 10) : null;
+        
+        // If both have numbers, sort numerically
+        if (aNum !== null && bNum !== null) {
+            return aNum - bNum;
+        }
+        
+        // If only one has a number, put numbered ones first
+        if (aNum !== null) return -1;
+        if (bNum !== null) return 1;
+        
+        // Otherwise sort alphabetically
+        return aName.localeCompare(bName);
+    });
+}
+
 // Fetches a list of shows, including their seasons
 app.get('/shows', async (req, res) => {
     try {
@@ -46,12 +74,14 @@ app.get('/shows', async (req, res) => {
         }
         const showsList = snapshot.docs.map(doc => {
             const data = doc.data();
+            // Sort seasons numerically before sending to client
+            const sortedSeasons = sortSeasons(data.seasons || []);
             return {
                 id: doc.id,
                 name: data.showName,
                 posterUrl: data.posterUrl,
                 // Include seasonName and the number of questions so clients can show counts
-                seasons: data.seasons ? data.seasons.map(s => ({ seasonName: s.seasonName, questionCount: (s.questions || []).length })) : []
+                seasons: sortedSeasons.map(s => ({ seasonName: s.seasonName, questionCount: (s.questions || []).length }))
             };
         });
         res.status(200).json(showsList);
@@ -302,6 +332,7 @@ app.post('/bulk-upload', async (req, res) => {
         });
 
         const showsToUpdate = {};
+        let duplicateCount = 0;
 
         for (const quizData of questions) {
             const { showName, posterUrl, seasonName, question, options, answer } = quizData;
@@ -334,21 +365,29 @@ app.post('/bulk-upload', async (req, res) => {
                         isNew: false
                     };
                 }
-            } else {
-                // Already accumulating updates for this show
-                const existingData = showsToUpdate[normalized].data;
-                let seasons = existingData.seasons || [];
-                const seasonIndex = seasons.findIndex(s => s.seasonName === seasonName);
+            }
 
-                if (seasonIndex > -1) {
-                    let existingQuestions = seasons[seasonIndex].questions || [];
+            // Now check for duplicates in the accumulated data (both existing DB and current batch)
+            const existingData = showsToUpdate[normalized].data;
+            let seasons = existingData.seasons || [];
+            const seasonIndex = seasons.findIndex(s => s.seasonName === seasonName);
+
+            // Check if question already exists in this season (in DB or in current batch)
+            if (seasonIndex > -1) {
+                let existingQuestions = seasons[seasonIndex].questions || [];
+                // Check if this exact question already exists
+                if (!existingQuestions.some(q => q.question === question)) {
                     existingQuestions.push({ question, options, answer });
                     seasons[seasonIndex].questions = existingQuestions;
                 } else {
-                    seasons.push({ seasonName, questions: [{ question, options, answer }] });
+                    duplicateCount++;
+                    console.log(`Duplicate question skipped: "${question}" for ${showName} - ${seasonName}`);
                 }
-                existingData.seasons = seasons;
+            } else {
+                // Season doesn't exist, create it with this question
+                seasons.push({ seasonName, questions: [{ question, options, answer }] });
             }
+            existingData.seasons = seasons;
         }
 
         // Commit changes in a single batch
@@ -362,7 +401,10 @@ app.post('/bulk-upload', async (req, res) => {
         }
 
         await batch.commit();
-        res.status(201).json({ message: `Bulk upload successful! Processed ${questions.length} items.` });
+        const processedCount = questions.length - duplicateCount;
+        res.status(201).json({ 
+            message: `Bulk upload successful! Processed ${processedCount} items (${duplicateCount} duplicates skipped).` 
+        });
         
     } catch (error) {
         console.error('Error during bulk upload:', error);
