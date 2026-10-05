@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -9,19 +10,19 @@ let serviceAccount;
 try {
     serviceAccount = require('./serviceAccountKey.json');
 } catch (error) {
-    console.error("--- FATAL ERROR: Could not load or parse serviceAccountKey.json ---\nDetailed Error:", error.message);
+    console.error('--- FATAL ERROR: Could not load or parse serviceAccountKey.json ---\nDetailed Error:', error.message);
     process.exit(1);
 }
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 const db = admin.firestore();
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
-const ADMIN_KEY = "your-secret-admin-key"; // CHANGE THIS to your desired key
+const ADMIN_KEY = 'your-secret-admin-key'; // CHANGE THIS to your desired key
 
 app.use(cors());
 app.use(express.json());
@@ -35,52 +36,45 @@ if (!fs.existsSync(path.join(staticPath, 'index.html'))) {
     console.warn('Warning: index.html not found in staticPath:', staticPath);
 }
 
-// Helper function to sort seasons numerically instead of alphabetically
-// Handles "Season 1", "Season 10", "All Seasons", "All Questions", etc.
+// Helper: sort seasons numerically (e.g. "Season 10" before "Season 9" alphabetically).
 function sortSeasons(seasons) {
     return seasons.sort((a, b) => {
-        const aName = a.seasonName || '';
-        const bName = b.seasonName || '';
-        
-        // Extract numbers from season names (e.g., "Season 10" -> 10)
-        const aMatch = aName.match(/\d+/);
-        const bMatch = bName.match(/\d+/);
-        
+        const aMatch = (a.seasonName || '').match(/\d+/);
+        const bMatch = (b.seasonName || '').match(/\d+/);
         const aNum = aMatch ? parseInt(aMatch[0], 10) : null;
         const bNum = bMatch ? parseInt(bMatch[0], 10) : null;
-        
-        // If both have numbers, sort numerically
-        if (aNum !== null && bNum !== null) {
-            return aNum - bNum;
-        }
-        
-        // If only one has a number, put numbered ones first
+        if (aNum !== null && bNum !== null) return aNum - bNum;
         if (aNum !== null) return -1;
         if (bNum !== null) return 1;
-        
-        // Otherwise sort alphabetically
-        return aName.localeCompare(bName);
+        return (a.seasonName || '').localeCompare(b.seasonName || '');
     });
 }
 
-// Fetches a list of shows, including their seasons
+// Helper: find a show document by case-insensitive name. Returns { id, ref, data } or null.
+async function findShowDoc(quizzesRef, normalizedName) {
+    const snapshot = await quizzesRef.get();
+    for (const doc of snapshot.docs) {
+        const data = doc.data();
+        if (data && data.showName && data.showName.trim().toLowerCase() === normalizedName) {
+            return { id: doc.id, ref: doc.ref, data, snapshot };
+        }
+    }
+    return { id: null, ref: null, data: null, snapshot };
+}
+
+// Fetches a list of shows including their seasons.
 app.get('/shows', async (req, res) => {
     try {
-        const quizzesRef = db.collection('quizzes');
-        const snapshot = await quizzesRef.get();
-        if (snapshot.empty) {
-            // Return an empty array (200) so clients can handle no-data gracefully
-            return res.status(200).json([]);
-        }
+        const snapshot = await db.collection('quizzes').get();
+        if (snapshot.empty) return res.status(200).json([]);
+
         const showsList = snapshot.docs.map(doc => {
             const data = doc.data();
-            // Sort seasons numerically before sending to client
             const sortedSeasons = sortSeasons(data.seasons || []);
             return {
                 id: doc.id,
                 name: data.showName,
                 posterUrl: data.posterUrl,
-                // Include seasonName and the number of questions so clients can show counts
                 seasons: sortedSeasons.map(s => ({ seasonName: s.seasonName, questionCount: (s.questions || []).length }))
             };
         });
@@ -91,69 +85,49 @@ app.get('/shows', async (req, res) => {
     }
 });
 
-// NEW API ENDPOINT: Fetches quiz questions for a specific show and season
+// Fetches quiz questions for a specific show and season.
 app.get('/quizzes/:showName/:seasonName', async (req, res) => {
     try {
-        const { showName, seasonName } = req.params;
-        const decodedShowName = decodeURIComponent(showName);
-        const decodedSeasonName = decodeURIComponent(seasonName);
+        const normalizedShow = decodeURIComponent(req.params.showName).trim().toLowerCase();
+        const normalizedSeason = decodeURIComponent(req.params.seasonName).trim().toLowerCase();
         const quizzesRef = db.collection('quizzes');
-        const snapshot = await quizzesRef.get();
 
-        if (snapshot.empty) {
-            return res.status(404).json({ message: 'No quizzes found in the database.' });
-        }
-
-        // Do a case-insensitive match and trim whitespace to be more forgiving when matching show names
-        const normalizedTargetShow = decodedShowName.trim().toLowerCase();
-        const normalizedTargetSeason = decodedSeasonName.trim().toLowerCase();
-
-        // Special case for "All Questions" season to combine all questions from all seasons of the show
-        if (normalizedTargetSeason === "all questions") {
+        // "All Questions" — aggregate across all seasons of the matched show.
+        if (normalizedSeason === 'all questions') {
+            const snapshot = await quizzesRef.get();
             let allQuestions = [];
-            snapshot.forEach(doc => {
+            for (const doc of snapshot.docs) {
                 const data = doc.data();
-                if (data && data.showName && data.showName.trim().toLowerCase() === normalizedTargetShow) {
-                    if (data.seasons) {
-                        data.seasons.forEach(season => {
-                            if (season.questions) {
-                                allQuestions = allQuestions.concat(season.questions);
-                            }
-                        });
+                if (data && data.showName && data.showName.trim().toLowerCase() === normalizedShow) {
+                    for (const season of (data.seasons || [])) {
+                        allQuestions = allQuestions.concat(season.questions || []);
                     }
+                    break; // show names are unique
                 }
-            });
-            res.status(200).json(allQuestions);
-            return;
+            }
+            return res.status(200).json(allQuestions);
         }
 
-        let foundDoc = null;
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data && data.showName && data.showName.trim().toLowerCase() === normalizedTargetShow) {
-                foundDoc = data;
-            }
-        });
-
+        const { data: foundDoc } = await findShowDoc(quizzesRef, normalizedShow);
         if (!foundDoc) {
             return res.status(404).json({ message: 'No quiz found for this show.' });
         }
 
-        const season = (foundDoc.seasons || []).find(s => (s.seasonName || '').trim().toLowerCase() === normalizedTargetSeason);
-
+        const season = (foundDoc.seasons || []).find(
+            s => (s.seasonName || '').trim().toLowerCase() === normalizedSeason
+        );
         if (!season) {
-            return res.status(404).json({ message: `No quiz found for season: ${decodedSeasonName}` });
+            return res.status(404).json({ message: `No quiz found for season: ${req.params.seasonName}` });
         }
 
         res.status(200).json(season.questions || []);
-
     } catch (error) {
         console.error('Error fetching quiz:', error);
         res.status(500).json({ message: 'Internal server error.' });
     }
 });
 
-// Handles user signup
+// Handles user signup.
 app.post('/signup', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -161,13 +135,12 @@ app.post('/signup', async (req, res) => {
             return res.status(400).json({ message: 'Username and password are required.' });
         }
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', username).get();
-        if (!snapshot.empty) {
+        const existing = await usersRef.where('username', '==', username).get();
+        if (!existing.empty) {
             return res.status(400).json({ message: 'Username already exists.' });
         }
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = { username, password: hashedPassword, isAdmin: false };
-        await usersRef.add(newUser);
+        await usersRef.add({ username, password: hashedPassword, isAdmin: false });
         res.status(201).json({ message: 'User created successfully!' });
     } catch (error) {
         console.error('Error in signup:', error);
@@ -175,21 +148,19 @@ app.post('/signup', async (req, res) => {
     }
 });
 
-// Handles regular user login
+// Handles regular user login.
 app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password are required.' });
         }
-        const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', username).get();
+        const snapshot = await db.collection('users').where('username', '==', username).get();
         if (snapshot.empty) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
         const userData = snapshot.docs[0].data();
-        const isPasswordCorrect = await bcrypt.compare(password, userData.password);
-        if (!isPasswordCorrect) {
+        if (!await bcrypt.compare(password, userData.password)) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
         res.status(200).json({ message: 'Login successful!', username: userData.username, isAdmin: userData.isAdmin || false });
@@ -199,7 +170,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// NEW API ENDPOINT: Handles admin login
+// Handles admin login.
 app.post('/admin-login', async (req, res) => {
     try {
         const { username, password, adminKey } = req.body;
@@ -209,20 +180,17 @@ app.post('/admin-login', async (req, res) => {
         if (adminKey !== ADMIN_KEY) {
             return res.status(401).json({ message: 'Invalid admin key.' });
         }
-        
         const usersRef = db.collection('users');
         const snapshot = await usersRef.where('username', '==', username).get();
         if (snapshot.empty) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
-        const userData = snapshot.docs[0].data();
-        const isPasswordCorrect = await bcrypt.compare(password, userData.password);
-        if (!isPasswordCorrect) {
+        const userDoc = snapshot.docs[0];
+        const userData = userDoc.data();
+        if (!await bcrypt.compare(password, userData.password)) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
-        
-        await usersRef.doc(snapshot.docs[0].id).update({ isAdmin: true });
-        
+        await usersRef.doc(userDoc.id).update({ isAdmin: true });
         res.status(200).json({ message: 'Admin login successful!', username: userData.username, isAdmin: true });
     } catch (error) {
         console.error('Error in admin login:', error);
@@ -230,59 +198,41 @@ app.post('/admin-login', async (req, res) => {
     }
 });
 
-// API ENDPOINT: Adds a new show and its first question, or just a new question to an existing show.
+// Adds a new question to a show/season, creating the show or season if needed.
 app.post('/add-question', async (req, res) => {
     try {
         const { showName, seasonName, posterUrl, question, options, answer } = req.body;
-
         if (!showName || !seasonName || !question || !options || !answer) {
             return res.status(400).json({ message: 'All fields are required.' });
         }
         const quizzesRef = db.collection('quizzes');
-
-        // Normalize input for case-insensitive matching
         const normalizedShowName = showName.trim().toLowerCase();
 
-        // Fetch all quizzes and look for a case-insensitive match to avoid duplicate show documents
-        const allSnapshot = await quizzesRef.get();
-        let existingDoc = null;
-        allSnapshot.forEach(doc => {
-            const data = doc.data();
-            if (data && data.showName && data.showName.trim().toLowerCase() === normalizedShowName) {
-                existingDoc = { id: doc.id, ref: doc.ref, data };
-            }
-        });
+        const { id: existingId, ref: existingRef } = await findShowDoc(quizzesRef, normalizedShowName);
 
-        if (!existingDoc) {
-            // Show does not exist, create it
+        if (!existingId) {
+            // New show
             if (!posterUrl) {
                 return res.status(400).json({ message: 'Poster URL is required to create a new show.' });
             }
-            const newShowData = {
+            await quizzesRef.add({
                 showName,
                 posterUrl,
-                seasons: [{
-                    seasonName,
-                    questions: [{ question, options, answer }]
-                }]
-            };
-            await quizzesRef.add(newShowData);
+                seasons: [{ seasonName, questions: [{ question, options, answer }] }]
+            });
             return res.status(201).json({ message: `Show '${showName}' and its first question added successfully!` });
         }
 
-        // Use a transaction to avoid race conditions when updating nested arrays
+        // Use a transaction to avoid race conditions when updating nested arrays.
         try {
             await db.runTransaction(async (t) => {
-                const docSnap = await t.get(existingDoc.ref);
-                const quizData = docSnap.data() || {};
-                const seasons = quizData.seasons || [];
-
+                const docSnap = await t.get(existingRef);
+                const seasons = (docSnap.data() || {}).seasons || [];
                 const seasonIndex = seasons.findIndex(s => (s.seasonName || '').trim() === seasonName.trim());
 
                 if (seasonIndex > -1) {
                     const questions = seasons[seasonIndex].questions || [];
                     if (questions.some(q => q.question === question)) {
-                        // Throw to abort transaction and indicate duplicate
                         const err = new Error('DUPLICATE_QUESTION');
                         err.code = 'DUPLICATE_QUESTION';
                         throw err;
@@ -292,8 +242,7 @@ app.post('/add-question', async (req, res) => {
                 } else {
                     seasons.push({ seasonName, questions: [{ question, options, answer }] });
                 }
-
-                t.update(existingDoc.ref, { seasons });
+                t.update(existingRef, { seasons });
             });
         } catch (txErr) {
             if (txErr && txErr.code === 'DUPLICATE_QUESTION') {
@@ -310,33 +259,32 @@ app.post('/add-question', async (req, res) => {
     }
 });
 
-// NEW API ENDPOINT FOR BULK UPLOAD
+// Bulk-upload an array of questions in a single Firestore batch.
 app.post('/bulk-upload', async (req, res) => {
     try {
         const { questions } = req.body;
         if (!Array.isArray(questions)) {
             return res.status(400).json({ message: 'Expected an array of questions.' });
         }
-        
+
         const quizzesRef = db.collection('quizzes');
         const batch = db.batch();
 
-        // Preload existing shows to perform case-insensitive matching and avoid duplicate documents
+        // Preload existing shows for case-insensitive matching.
         const existingSnapshot = await quizzesRef.get();
         const existingShowsMap = {};
-        existingSnapshot.forEach(doc => {
+        for (const doc of existingSnapshot.docs) {
             const data = doc.data();
             if (data && data.showName) {
                 existingShowsMap[data.showName.trim().toLowerCase()] = { docRef: doc.ref, data };
             }
-        });
+        }
 
         const showsToUpdate = {};
         let duplicateCount = 0;
 
         for (const quizData of questions) {
             const { showName, posterUrl, seasonName, question, options, answer } = quizData;
-
             if (!showName || !seasonName || !question || !options || !answer) {
                 console.warn(`Skipping malformed quiz data: ${JSON.stringify(quizData)}`);
                 continue;
@@ -346,53 +294,30 @@ app.post('/bulk-upload', async (req, res) => {
 
             if (!showsToUpdate[normalized]) {
                 const existing = existingShowsMap[normalized];
-                if (!existing) {
-                    // New show
-                    showsToUpdate[normalized] = {
-                        docRef: quizzesRef.doc(),
-                        data: {
-                            showName,
-                            posterUrl,
-                            seasons: [{ seasonName, questions: [{ question, options, answer }] }]
-                        },
-                        isNew: true
-                    };
-                } else {
-                    // Existing show
-                    showsToUpdate[normalized] = {
-                        docRef: existing.docRef,
-                        data: JSON.parse(JSON.stringify(existing.data)), // shallow clone
-                        isNew: false
-                    };
-                }
+                showsToUpdate[normalized] = existing
+                    ? { docRef: existing.docRef, data: JSON.parse(JSON.stringify(existing.data)), isNew: false }
+                    : { docRef: quizzesRef.doc(), data: { showName, posterUrl, seasons: [] }, isNew: true };
             }
 
-            // Now check for duplicates in the accumulated data (both existing DB and current batch)
             const existingData = showsToUpdate[normalized].data;
-            let seasons = existingData.seasons || [];
+            const seasons = existingData.seasons || [];
             const seasonIndex = seasons.findIndex(s => s.seasonName === seasonName);
 
-            // Check if question already exists in this season (in DB or in current batch)
             if (seasonIndex > -1) {
-                let existingQuestions = seasons[seasonIndex].questions || [];
-                // Check if this exact question already exists
-                if (!existingQuestions.some(q => q.question === question)) {
+                const existingQuestions = seasons[seasonIndex].questions || [];
+                if (existingQuestions.some(q => q.question === question)) {
+                    duplicateCount++;
+                } else {
                     existingQuestions.push({ question, options, answer });
                     seasons[seasonIndex].questions = existingQuestions;
-                } else {
-                    duplicateCount++;
-                    console.log(`Duplicate question skipped: "${question}" for ${showName} - ${seasonName}`);
                 }
             } else {
-                // Season doesn't exist, create it with this question
                 seasons.push({ seasonName, questions: [{ question, options, answer }] });
             }
             existingData.seasons = seasons;
         }
 
-        // Commit changes in a single batch
-        for (const key in showsToUpdate) {
-            const { docRef, data, isNew } = showsToUpdate[key];
+        for (const { docRef, data, isNew } of Object.values(showsToUpdate)) {
             if (isNew) {
                 batch.set(docRef, data);
             } else {
@@ -402,25 +327,23 @@ app.post('/bulk-upload', async (req, res) => {
 
         await batch.commit();
         const processedCount = questions.length - duplicateCount;
-        res.status(201).json({ 
-            message: `Bulk upload successful! Processed ${processedCount} items (${duplicateCount} duplicates skipped).` 
+        res.status(201).json({
+            message: `Bulk upload successful! Processed ${processedCount} items (${duplicateCount} duplicates skipped).`
         });
-        
     } catch (error) {
         console.error('Error during bulk upload:', error);
         res.status(500).json({ message: 'Internal server error during bulk upload.' });
     }
 });
 
-// NEW API ENDPOINT: Submits a user's score to the leaderboard
+// Submits a user's score to the leaderboard.
 app.post('/submit-score', async (req, res) => {
     try {
         const { username, showName, seasonName, score } = req.body;
         if (!username || !showName || !seasonName || score === undefined) {
             return res.status(400).json({ message: 'Username, show name, season name, and score are required.' });
         }
-        const scoresRef = db.collection('scores');
-        await scoresRef.add({
+        await db.collection('scores').add({
             username,
             showName,
             seasonName,
@@ -434,12 +357,11 @@ app.post('/submit-score', async (req, res) => {
     }
 });
 
-// NEW API ENDPOINT: Fetches the top 10 scores for a given show
+// Fetches the top 10 scores for a given show.
 app.get('/leaderboard/:showName', async (req, res) => {
     try {
-        const { showName } = req.params;
-        const scoresRef = db.collection('scores');
-        const snapshot = await scoresRef
+        const showName = decodeURIComponent(req.params.showName);
+        const snapshot = await db.collection('scores')
             .where('showName', '==', showName)
             .orderBy('score', 'desc')
             .limit(10)
@@ -448,56 +370,42 @@ app.get('/leaderboard/:showName', async (req, res) => {
         if (snapshot.empty) {
             return res.status(404).json({ message: 'No scores found for this show yet.' });
         }
-
-        const leaderboard = snapshot.docs.map(doc => doc.data());
-        res.status(200).json(leaderboard);
+        res.status(200).json(snapshot.docs.map(doc => doc.data()));
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
         res.status(500).json({ message: 'Failed to fetch leaderboard.' });
     }
 });
 
-
-// NEW API ENDPOINT: Fetches the global leaderboard with best scores only
+// Fetches the global leaderboard: best score per user per quiz, summed across all quizzes.
 app.get('/global-leaderboard', async (req, res) => {
     try {
-        const scoresRef = db.collection('scores');
-        const snapshot = await scoresRef.get();
+        const snapshot = await db.collection('scores').get();
+        if (snapshot.empty) return res.status(200).json([]);
 
-        if (snapshot.empty) {
-            return res.status(200).json([]);
+        // Aggregate best score per (username, showName, seasonName) key.
+        const bestPerQuiz = {};
+        for (const doc of snapshot.docs) {
+            const { username, showName, seasonName, score } = doc.data();
+            const key = `${username}\0${showName}\0${seasonName}`;
+            if (!bestPerQuiz[key] || score > bestPerQuiz[key]) {
+                bestPerQuiz[key] = { username, score };
+            }
         }
 
-        const bestScoresPerQuiz = {};
-
-        snapshot.forEach(doc => {
-            const { username, showName, seasonName, score } = doc.data();
-            const quizKey = `${username}-${showName}-${seasonName}`;
-            
-            if (!bestScoresPerQuiz[quizKey] || score > bestScoresPerQuiz[quizKey].score) {
-                bestScoresPerQuiz[quizKey] = {
-                    username,
-                    score,
-                    showName,
-                    seasonName
-                };
-            }
-        });
-
+        // Sum best scores per user.
         const globalScores = {};
-        Object.values(bestScoresPerQuiz).forEach(entry => {
-            if (globalScores[entry.username]) {
-                globalScores[entry.username].globalScore += entry.score;
+        for (const { username, score } of Object.values(bestPerQuiz)) {
+            if (globalScores[username]) {
+                globalScores[username] += score;
             } else {
-                globalScores[entry.username] = {
-                    username: entry.username,
-                    globalScore: entry.score
-                };
+                globalScores[username] = score;
             }
-        });
+        }
 
-        // Convert the object to an array and sort by global score in descending order
-        const leaderboard = Object.values(globalScores).sort((a, b) => b.globalScore - a.globalScore);
+        const leaderboard = Object.entries(globalScores)
+            .map(([username, globalScore]) => ({ username, globalScore }))
+            .sort((a, b) => b.globalScore - a.globalScore);
 
         res.status(200).json(leaderboard);
     } catch (error) {
@@ -506,63 +414,38 @@ app.get('/global-leaderboard', async (req, res) => {
     }
 });
 
-// Serve static files from the determined staticPath (after API routes so APIs take precedence)
+// Serve static files (after API routes so APIs take precedence).
 app.use(express.static(staticPath));
 
-// For any other route (not handled above), serve the frontend's index.html so the SPA routing works
 // Catch-all: serve React's index.html for non-API GET requests so SPA routing works.
+const API_PREFIXES = ['/signup', '/login', '/admin-login', '/shows', '/quizzes', '/add-question', '/bulk-upload', '/submit-score', '/leaderboard', '/global-leaderboard'];
 app.use((req, res, next) => {
-    // Only handle GET requests that accept HTML
-    if (req.method !== 'GET' || !req.accepts || !req.accepts('html')) {
-        return next();
-    }
-
-    // Treat these paths as API routes; let the earlier route handlers handle them or return 404
-    const apiPrefixes = ['/signup', '/login', '/admin-login', '/shows', '/quizzes', '/add-question', '/bulk-upload', '/submit-score', '/leaderboard', '/global-leaderboard'];
-    for (const prefix of apiPrefixes) {
-        if (req.path.startsWith(prefix)) return next();
-    }
-
-    const indexPath = path.join(staticPath, 'index.html');
-    return res.sendFile(indexPath, err => {
-        if (err) next(err);
-    });
+    if (req.method !== 'GET') return next();
+    if (API_PREFIXES.some(p => req.path.startsWith(p))) return next();
+    res.sendFile(path.join(staticPath, 'index.html'), err => { if (err) next(err); });
 });
 
-// Bind to all interfaces so other devices on the LAN can connect
-const HOST = process.env.HOST || '0.0.0.0';
-app.listen(PORT, HOST, () => {
-    // Try to discover LAN IPv4 addresses to print helpful URLs
-    const os = require('os');
-    const interfaces = os.networkInterfaces();
+app.listen(PORT, '0.0.0.0', () => {
     const addresses = [];
-    Object.keys(interfaces).forEach(ifname => {
-        interfaces[ifname].forEach(iface => {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                addresses.push(iface.address);
-            }
-        });
-    });
-
-    console.log(`Server is running on http://localhost:${PORT} (bound to ${HOST})`);
+    for (const ifaces of Object.values(os.networkInterfaces())) {
+        for (const iface of ifaces) {
+            if (iface.family === 'IPv4' && !iface.internal) addresses.push(iface.address);
+        }
+    }
+    console.log(`Server running on http://localhost:${PORT}`);
     if (addresses.length) {
-        console.log('Accessible on your LAN at:');
-        addresses.forEach(a => console.log(`  http://${a}:${PORT}`));
-    } else {
-        console.log('No external network interfaces detected. If you expect other devices to connect, ensure you are on a LAN and disable any restrictive firewalls.');
+        console.log('LAN:', addresses.map(a => `http://${a}:${PORT}`).join('  '));
     }
 });
 
-// Write PID file so external tools can stop this specific server process
+// Write PID file so external tools can stop this specific server process.
 try {
     const pidPath = path.join(__dirname, 'backend.pid');
     fs.writeFileSync(pidPath, String(process.pid), { encoding: 'utf8' });
-    const cleanupPidFile = () => {
-        try { if (fs.existsSync(pidPath)) fs.unlinkSync(pidPath); } catch (e) { /* ignore */ }
-    };
-    process.on('exit', cleanupPidFile);
-    process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
-    process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
+    const cleanup = () => { try { if (fs.existsSync(pidPath)) fs.unlinkSync(pidPath); } catch (_) {} };
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => { cleanup(); process.exit(0); });
+    process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 } catch (err) {
-    console.warn('Could not write PID file for backend process:', err && err.message);
+    console.warn('Could not write PID file:', err && err.message);
 }
