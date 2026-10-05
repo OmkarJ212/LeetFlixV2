@@ -1,0 +1,86 @@
+/* ==========================================================================
+   LeetFlix Centralized Color Theme System (Design Tokens)
+   Modifying any variable here updates colors across all components & views.
+   ========================================================================== */
+
+:root, .dark-theme {
+  /* Backgrounds */
+  --bg-primary: #0d0c1d;
+  --bg-card: rgba(23, 21, 43, 0.85);
+  --bg-card-hover: rgba(30, 27, 56, 0.95);
+  --bg-navbar: rgba(13, 12, 29, 0.85);
+  --bg-modal: rgba(23, 21, 43, 0.95);
+  --bg-overlay: rgba(7, 6, 16, 0.8);
+
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6c6c85;
+
+  /* Borders & Inputs */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --input-bg: rgba(255, 255, 255, 0.05);
+
+  /* Brand & Accents */
+  --brand-red: #e50914;
+  --brand-red-hover: #ff1e27;
+  --brand-yellow: #f5c518;
+  --brand-purple: #7f5af0;
+
+  /* Component Specifics */
+  --btn-primary-bg: linear-gradient(135deg, #e50914, #b20710);
+  --btn-primary-text: #ffffff;
+  --btn-primary-shadow: rgba(229, 9, 20, 0.35);
+
+  --btn-secondary-bg: rgba(245, 197, 24, 0.12);
+  --btn-secondary-text: #f5c518;
+  --btn-secondary-border: rgba(245, 197, 24, 0.3);
+
+  --option-bg: rgba(255, 255, 255, 0.04);
+  --option-hover-bg: rgba(127, 90, 240, 0.18);
+  --option-hover-border: rgba(127, 90, 240, 0.5);
+
+  --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.light-theme {
+  /* Backgrounds */
+  --bg-primary: #f4f5fa;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ffffff;
+  --bg-navbar: rgba(255, 255, 255, 0.9);
+  --bg-modal: #ffffff;
+  --bg-overlay: rgba(15, 15, 30, 0.4);
+
+  /* Text Colors */
+  --text-primary: #181725;
+  --text-secondary: #5e5e78;
+  --text-muted: #8e8ea6;
+
+  /* Borders & Inputs */
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.2);
+  --input-bg: rgba(0, 0, 0, 0.03);
+
+  /* Brand & Accents */
+  --brand-red: #e50914;
+  --brand-red-hover: #c20308;
+  --brand-yellow: #d4a307;
+  --brand-purple: #6246ea;
+
+  /* Component Specifics */
+  --btn-primary-bg: #e50914;
+  --btn-primary-text: #ffffff;
+  --btn-primary-shadow: rgba(229, 9, 20, 0.25);
+
+  --btn-secondary-bg: rgba(212, 163, 7, 0.12);
+  --btn-secondary-text: #9e7900;
+  --btn-secondary-border: rgba(212, 163, 7, 0.3);
+
+  --option-bg: rgba(0, 0, 0, 0.03);
+  --option-hover-bg: rgba(229, 9, 20, 0.08);
+  --option-hover-border: rgba(229, 9, 20, 0.3);
+
+  --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}

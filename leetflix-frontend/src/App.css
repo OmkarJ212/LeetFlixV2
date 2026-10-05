@@ -1,720 +1,513 @@
-/* General Body & Theme Setup */
+/* ===== Fonts & Import ===== */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Global Resets & Body */
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: "Montserrat", sans-serif;
-  background: linear-gradient(135deg, #e50914, #0f0f1a, #1b1b2f, #8e2de2);
-  background-size: 400% 400%;
-  color: #fff;
-  animation: animated-gradient 15s ease infinite;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Animation Keyframes */
-@keyframes animated-gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-red);
 }
 
-@keyframes fadeInDown {
-  from { opacity: 0; transform: translateY(-30px); }
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes popIn {
-  from { opacity: 0; transform: translateY(40px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes cardPop {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: var(--bg-primary);
 }
 
-/* Navbar */
+/* Modern Navbar */
 .navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 30px;
-  background: rgba(10, 10, 10, 0.7);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  animation: fadeInDown 0.6s ease-out;
+  padding: 16px 40px;
+  background: var(--bg-navbar);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
-.navbar h1 {
+.navbar h1.logo {
   margin: 0;
   font-family: 'Bebas Neue', cursive;
-  font-size: 28px;
-  letter-spacing: 1.5px;
-  color: #e50914;
+  font-size: 34px;
+  letter-spacing: 2px;
+  color: var(--brand-red);
+  text-shadow: 0 2px 10px rgba(229, 9, 20, 0.3);
+  cursor: pointer;
+  user-select: none;
 }
 
 .brand-leet {
-  color: #f5c518;
+  color: var(--brand-yellow);
+  text-shadow: 0 2px 10px rgba(245, 197, 24, 0.3);
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 20px;
   position: relative;
 }
 
 .welcome-message {
-  font-weight: bold;
-}
-
-/* Navbar Buttons */
-.dropdown-btn {
-  background: none;
-  border: none;
-  color: #fff;
-  padding: 12px 16px;
-  text-decoration: none;
-  display: block;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-family: 'Poppins', sans-serif;
-  font-size: 1rem;
-}
-
-.dropdown-btn:hover {
-  background-color: #4A4660;
-}
-
-/* Filter Bar */
-.filter-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  padding: 20px;
-  background: rgba(18, 18, 18, 0.7);
-  backdrop-filter: blur(10px);
-  animation: fadeInDown 0.6s ease-out 0.1s;
-  animation-fill-mode: backwards;
-}
-
-.filter-bar input[type="text"], .filter-bar select, .filter-bar .btn {
-  padding: 10px 15px;
-  border-radius: 5px;
-  background: #1e1e2e;
-  color: #fff;
-  border: 1px solid #444;
-  font-size: 1rem;
-  font-family: "Montserrat", sans-serif;
-}
-
-.filter-bar .btn {
-  background: #f5c518;
-  cursor: pointer;
-  color:black;
-  font-weight: bold;
-  text-decoration: none;
-  transition: background-color 0.2s;
-}
-
-.filter-bar input[type="text"] {
-  width: 350px;
-}
-
-/* Main Content Containers & Grid */
-.show-grid {
-  padding: 40px;
-  max-width: 1200px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 30px;
-  animation: popIn 0.8s ease-out 0.4s;
-  animation-fill-mode: backwards;
-}
-
-/* Card Styles */
-.show-card {
-  background: rgba(30, 30, 46, 0.8);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.show-card:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.4);
-}
-
-.poster-wrapper {
-  width: 100%;
-  /* Portrait poster ratio (2:3). Change if you prefer 3/4 or other. */
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  background: linear-gradient(180deg, #0f0f12, #1a1a2a);
-  display: block;
-}
-
-.poster-wrapper img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* preserve aspect, crop to fill */
-  object-position: center;
-  display: block;
-}
-
-.card-info {
-  padding: 15px;
-  display: flex;
-  flex-direction: column; /* title on top, actions below */
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.show-title {
-  margin: 0;
-  font-size: 1rem;
-  flex-grow: 1;
-}
-
-.start-quiz-btn {
-  padding: 0.5rem 1rem;
-  background: #f40612;
-  color: #FFFFFF;
-  text-decoration: none;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.start-quiz-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(244, 6, 18, 0.5);
-}
-
-.view-leaderboard-btn {
-  padding: 0.5rem 1rem;
-  background: #f5c518;
-  color: black;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.view-leaderboard-btn:hover {
-  background-color: #fff;
-}
-
-/* Loading/Empty State */
-.loading-message {
-  grid-column: 1 / -1;
-  text-align: center;
-  font-size: 1.5rem;
-  padding: 50px;
-}
-
-/* Quiz Page Styles */
-.quiz-page-container {
-    background-color: #100E19;
-    background-image: radial-gradient(circle at top right, rgba(142, 45, 226, 0.2), transparent 40%),
-                      radial-gradient(circle at bottom left, rgba(229, 9, 20, 0.2), transparent 40%);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 1rem;
-    font-family: 'Poppins', sans-serif;
-    color: #EAEAEA;
-    background-size: 400% 400%;
-    animation: animated-gradient 15s ease infinite;
-}
-
-.quiz-container {
-  background-color: #1C1A29;
-  padding: 2rem 2.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--input-bg);
+  padding: 6px 14px;
   border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  width: 100%;
-  max-width: 560px; /* slightly slimmer container per request */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  font-family: 'Poppins', sans-serif;
+  border: 1px solid var(--border-color);
 }
 
-/* Fixed poster outside the main container */
-.fixed-poster {
-  position: fixed;
-  left: 40px;
-  top: 120px;
-  z-index: 50;
-}
-
-/* Larger poster variation used on SeasonSelection */
-.fixed-poster.large-poster {
-  left: 28px;
-  top: 100px;
-}
-.fixed-poster.large-poster .small-poster {
-  width: 200px;
-  aspect-ratio: 2 / 3;
-}
-
-@media (max-width: 900px) {
-  .fixed-poster { display: none; } /* hide fixed poster on very small screens */
-}
-
-.quiz-header {
-    text-align: center;
-    margin-bottom: 2rem;
-    width: 100%;
-    position: relative;
-    padding-top: 3rem;
-}
-
-.quiz-header h1 {
-    font-weight: 700;
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-}
-
-.quiz-header h2 {
-    font-weight: 400;
-    font-size: 1rem;
-    color: #a09fb5;
-}
-
-.question-text {
-    font-size: 1.25rem;
-    font-weight: 500;
-    margin-bottom: 2rem;
-    line-height: 1.6;
-    text-align: center;
-    width: 100%;
-}
-
-.options-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-}
-
-.option {
-    display: block;
-    background-color: #333045;
-    padding: 1rem;
-    border-radius: 12px;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
-    text-align: center;
-}
-
-.option:hover {
-    background-color: #4A4660;
-}
-
-.option input[type="radio"] {
-    display: none;
-}
-
-.option .option-text {
-    display: inline-block;
-    width: 100%;
-    pointer-events: none;
-    font-family: 'Poppins', sans-serif;
-    font-weight: 500;
-}
-
-button.next-question-btn, button.reset-quiz-btn {
-    display: block;
-    width: 100%;
-    padding: 1rem;
-    margin-top: 2rem;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #FFFFFF;
-    background: #f40612;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    font-family: 'Poppins', sans-serif;
-}
-
-button.next-question-btn:hover, button.reset-quiz-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 20px rgba(244, 6, 18, 0.4);
-}
-
-.home-button {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    padding: 0.6rem 1.2rem;
-    background: #f40612;
-    color: #FFFFFF;
-    border: none;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    z-index: 10;
-}
-
-.home-button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(244, 6, 18, 0.5);
-}
-
-/* SeasonSelection layout: poster on the top-left with content to the right (responsive) */
-.season-selection-grid {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 24px;
-  align-items: start;
-  max-width: 900px;
-}
-
-.season-left {
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
-}
-
-.small-poster {
-  width: 140px;
-  aspect-ratio: 2 / 3;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.04);
-  /* Keep poster visible while the seasons list scrolls */
-  position: -webkit-sticky;
-  position: sticky;
-  top: 40px;
-  z-index: 30;
-}
-
-.small-poster img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.season-right {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  /* Make only the right column (seasons/options) scrollable so the poster stays fixed */
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  padding-right: 8px; /* give space for scrollbar */
-}
-
-.season-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Improve contrast for season option buttons specifically on the SeasonSelection page */
-.season-options .option {
-  background: linear-gradient(180deg, #3c3247, #2f2636); /* deeper purple gradient */
-  color: #ffffff; /* ensure readable text */
-  border-radius: 14px;
-  padding: 1rem 1.25rem;
-  font-weight: 700;
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  text-align: center;
-}
-
-.season-options .option .option-text {
-  color: #ffffff;
-}
-
-.season-options .option:hover {
-  background: linear-gradient(180deg, #5a4663, #463549); /* slightly lighter on hover */
-  transform: translateY(-3px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.55);
-}
-
-@media (max-width: 700px) {
-  .season-selection-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .small-poster {
-    width: 100%;
-    aspect-ratio: 3 / 1.2; /* make a horizontal banner on small screens */
-  }
-}
-
-/* Quiz grid mirrors the SeasonSelection layout */
-.quiz-grid {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 24px;
-  align-items: start;
-  width: 100%;
-}
-
-.quiz-container.quiz-grid {
-  max-width: 1100px;
-}
-
-/* Ensure quiz options match season option appearance */
-.quiz-container .season-options .option {
-  background: linear-gradient(180deg, #3c3247, #2f2636);
-  color: #ffffff;
-  border-radius: 14px;
-  padding: 1rem 1.25rem;
-  font-weight: 700;
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  text-align: center;
-}
-
-.quiz-container .season-options .option:hover {
-  background: linear-gradient(180deg, #5a4663, #463549);
-  transform: translateY(-3px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.55);
-}
-
-/* Modal and Form Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
-}
-.modal-content {
-  padding: 40px;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-  background: rgba(30, 30, 46, 0.9);
-  animation: slideIn 0.3s ease-out;
-  font-family: 'Poppins', sans-serif;
-}
-.modal-content h2 {
-  font-family: 'Bebas Neue', cursive;
-  margin-top: 0;
-  margin-bottom: 25px;
-  letter-spacing: 1.5px;
-}
-.form-group {
-  margin-bottom: 15px;
-  text-align: left;
-}
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 10px;
-  border-radius: 5px;
-  background: #1e1e2e;
-  color: #fff;
-  border: 1px solid #444;
-  box-sizing: border-box;
-  font-family: 'Poppins', sans-serif;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-}
-.form-actions button {
-  padding: 10px 15px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: 0.3s;
-}
-.form-actions button[type="submit"] {
-  background: #f5c518;
-  color: black;
-}
-.form-actions button[type="submit"]:hover {
-  background: #fff;
-}
-.form-actions button[type="button"] {
-  background: #444;
-  color: white;
-}
-.form-actions button[type="button"]:hover {
-  background: #666;
-}
-/* New styles for the dropdown menu */
+/* Dropdown Navigation */
 .dropdown {
   position: relative;
   display: inline-block;
 }
 
 .dropdown-toggle {
-  background: none;
-  border: none;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
   cursor: pointer;
-  padding: 8px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  width: 40px;
+  gap: 4px;
+  width: 44px;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.dropdown-toggle:hover {
+  border-color: var(--border-hover);
 }
 
 .dropdown-toggle .bar {
-    display: block;
-    width: 25px;
-    height: 3px;
-    background-color: #fff;
-    border-radius: 2px;
+  display: block;
+  width: 20px;
+  height: 2px;
+  background-color: var(--text-primary);
+  border-radius: 2px;
 }
 
 .dropdown-menu {
   display: none;
   position: absolute;
-  top: 100%;
+  top: calc(100% + 10px);
   right: 0;
-  background-color: rgba(30, 30, 46, 0.95);
-  backdrop-filter: blur(5px);
-  min-width: 180px;
-  border-radius: 12px;
-  box-shadow: 0 8px 16px 0px rgba(0,0,0,0.2);
-  z-index: 1;
+  background: var(--bg-modal);
+  backdrop-filter: blur(20px);
+  min-width: 210px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  z-index: 100;
   overflow: hidden;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.dropdown-menu .dropdown-btn {
-  background: none;
-  border: none;
-  color: #fff;
-  padding: 12px 16px;
-  text-decoration: none;
-  display: block;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-family: 'Poppins', sans-serif;
-  font-size: 1rem;
-}
-
-.dropdown-menu .dropdown-btn:hover {
-  background-color: #4A4660;
-}
-
-/* Card action row: place buttons side-by-side and align to bottom */
-.card-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.card-info .show-title {
-  margin-bottom: 8px;
+  padding: 6px;
+  animation: fadeInUp 0.2s ease-out;
 }
 
 .dropdown:hover .dropdown-menu {
   display: block;
 }
 
-/* LEADERBOARD-SPECIFIC STYLES */
-.leaderboard-list {
-    list-style: none;
-    padding: 0;
-    width: 100%;
-}
-
-.leaderboard-entry {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px 16px;
-    margin-bottom: 8px;
-    background-color: rgba(51, 48, 69, 0.8);
-    border-radius: 8px;
-    font-family: 'Poppins', sans-serif;
-    font-weight: 500;
-}
-
-/* ... [Previous app.css code remains unchanged] ... */
-
-/* Modal and Form Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
+.dropdown-menu .dropdown-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 11px 16px;
+  text-decoration: none;
+  display: block;
   width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.dropdown-menu .dropdown-btn:hover {
+  background: var(--option-hover-bg);
+  color: var(--text-primary);
+}
+
+/* Filter / Search Section */
+.filter-bar {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
-  /* NEW: Allow the modal to scroll when content overflows */
-  overflow-y: auto;
+  padding: 30px 20px 10px;
 }
 
-.modal-content {
-  padding: 40px;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-  background: rgba(30, 30, 46, 0.9);
-  animation: slideIn 0.3s ease-out;
+.search-bar {
+  width: 100%;
+  max-width: 480px;
+  padding: 14px 22px;
+  border-radius: 30px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  font-size: 0.95rem;
   font-family: 'Poppins', sans-serif;
-  /* NEW: Add a max-height to the content and allow it to scroll internally */
-  max-height: 90vh; /* Limits the modal height to 90% of the viewport height */
-  overflow-y: auto; /* Allows internal scrolling if the content exceeds max-height */
+  outline: none;
+  transition: all 0.25s ease;
+  box-shadow: var(--card-shadow);
 }
 
-/* ... [Rest of the app.css code remains unchanged] ... */
+.search-bar::placeholder {
+  color: var(--text-muted);
+}
 
-/* Slimmer container and per-season row/button styles */
-.slimmer-container {
-  max-width: 520px; /* even slimmer for the season page */
+.search-bar:focus {
+  border-color: var(--brand-red);
+  box-shadow: 0 0 16px rgba(229, 9, 20, 0.25);
+}
+
+/* Show Grid Layout */
+.show-grid {
+  padding: 30px 40px 60px;
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 28px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Show Card Styling */
+.show-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--card-shadow);
+  animation: cardPop 0.35s ease-out backwards;
+}
+
+.show-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+}
+
+.poster-wrapper {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--input-bg);
+  position: relative;
+}
+
+.poster-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.4s ease;
+}
+
+.show-card:hover .poster-wrapper img {
+  transform: scale(1.05);
+}
+
+.card-info {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-grow: 1;
+  gap: 14px;
+}
+
+.show-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.start-quiz-btn {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px var(--btn-primary-shadow);
+}
+
+.start-quiz-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.view-leaderboard-btn {
+  padding: 10px 14px;
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+  border: 1px solid var(--btn-secondary-border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-leaderboard-btn:hover {
+  background: var(--brand-yellow);
+  color: #0d0c1d;
+}
+
+/* Loading & Empty States */
+.loading-message {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  padding: 80px 20px;
+}
+
+/* Quiz Page Container */
+.quiz-page-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 30px 20px;
+  position: relative;
+  background-color: var(--bg-primary);
+}
+
+.quiz-container {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 40px 36px;
+  border-radius: 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.quiz-header {
+  text-align: center;
+  margin-bottom: 24px;
+  width: 100%;
+  padding-top: 15px;
+}
+
+.quiz-header h1 {
+  font-weight: 700;
+  font-size: 1.8rem;
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+}
+
+.quiz-header h2 {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.question-text {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-bottom: 28px;
+  line-height: 1.55;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.option {
+  display: block;
+  background: var(--option-bg);
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  font-weight: 500;
+}
+
+.option:hover {
+  background: var(--option-hover-bg);
+  border-color: var(--option-hover-border);
+  transform: translateY(-2px);
+}
+
+.home-button {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  padding: 8px 16px;
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.home-button:hover {
+  background: var(--brand-red);
+  color: #ffffff;
+}
+
+.reset-quiz-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 24px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 20px var(--btn-primary-shadow);
+}
+
+.reset-quiz-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Fixed Poster View */
+.fixed-poster {
+  position: fixed;
+  left: 50px;
+  top: 130px;
+  z-index: 50;
+}
+
+.small-poster {
+  width: 160px;
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
+}
+
+.small-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 960px) {
+  .fixed-poster { display: none; }
+}
+
+/* Season Selection */
+.randomize-toggle {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.randomize-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.randomize-toggle input[type="checkbox"] {
+  accent-color: var(--brand-red);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .options-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -722,35 +515,173 @@ button.next-question-btn:hover, button.reset-quiz-btn:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  padding: 10px 16px;
+  background: var(--option-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.season-row:hover {
+  border-color: var(--border-hover);
 }
 
 .season-label {
-  flex: 1 1 auto;
-  color: #fff;
-  font-weight: 700;
-  padding: 1rem 1.25rem;
-  background: transparent;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-primary);
 }
 
 .start-season-btn {
-  flex: 0 0 auto;
-  background: linear-gradient(180deg, #f40612, #c20308);
-  color: #fff;
-  border-radius: 12px;
-  padding: 0.6rem 1rem;
-  font-weight: 700;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .start-season-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(244,6,18,0.35);
+  transform: translateY(-1px);
 }
 
-@media (max-width: 700px) {
-  .fixed-poster.large-poster .small-poster { width: 140px; }
-  .slimmer-container { max-width: 92%; }
+/* Modal Overlay & Dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.modal-content {
+  padding: 36px;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  background: var(--bg-modal);
+  border: 1px solid var(--border-color);
+  animation: fadeInUp 0.3s ease-out;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-content h2 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2rem;
+  margin-top: 0;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+
+.form-group {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  outline: none;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--brand-red);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.form-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.form-actions button[type="submit"] {
+  background: var(--brand-yellow);
+  color: #0d0c1d;
+}
+
+.form-actions button[type="submit"]:hover {
+  opacity: 0.9;
+}
+
+.form-actions button[type="button"] {
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.form-actions button[type="button"]:hover {
+  border-color: var(--border-hover);
+}
+
+/* Leaderboard List */
+.leaderboard-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leaderboard-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: var(--option-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.leaderboard-entry:nth-child(1) {
+  border-color: rgba(245, 197, 24, 0.4);
+  background: rgba(245, 197, 24, 0.08);
 }
