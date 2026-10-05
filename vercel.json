@@ -1,0 +1,20 @@
+{
+  "services": {
+    "frontend": {
+      "root": "leetflix-frontend"
+    },
+    "backend": {
+      "root": "leetflix-backend"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "frontend" }
+    }
+  ]
+}
