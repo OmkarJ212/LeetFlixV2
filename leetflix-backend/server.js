@@ -8,33 +8,38 @@ const bcrypt = require('bcryptjs');
 
 let serviceAccount;
 try {
-    serviceAccount = require('./serviceAccountKey.json');
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        serviceAccount = require('./serviceAccountKey.json');
+    }
 } catch (error) {
-    console.error('--- FATAL ERROR: Could not load or parse serviceAccountKey.json ---\nDetailed Error:', error.message);
-    process.exit(1);
+    console.error('--- FATAL ERROR: Could not load or parse serviceAccountKey / FIREBASE_SERVICE_ACCOUNT env var ---\nDetailed Error:', error.message);
+    // Don't crash immediately on load in serverless if env vars are being configured
 }
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+if (serviceAccount && !admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 
-const db = admin.firestore();
+const db = admin.apps.length ? admin.firestore() : null;
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const ADMIN_KEY = 'your-secret-admin-key'; // CHANGE THIS to your desired key
+const ADMIN_KEY = process.env.ADMIN_KEY || 'your-secret-admin-key';
 
 app.use(cors());
 app.use(express.json());
 
-// Determine where the frontend build is located. Prefer sibling frontend/build when present so
-// the backend serves the freshly built frontend during development; fall back to backend/build.
-const frontendBuildSibling = path.join(__dirname, '..', 'leetflix-frontend', 'build');
-const backendBuild = path.join(__dirname, 'build');
-const staticPath = fs.existsSync(frontendBuildSibling) ? frontendBuildSibling : backendBuild;
-if (!fs.existsSync(path.join(staticPath, 'index.html'))) {
-    console.warn('Warning: index.html not found in staticPath:', staticPath);
-}
+// Middleware to ensure DB is initialized
+app.use((req, res, next) => {
+    if (!db) {
+        return res.status(500).json({ message: 'Firebase DB not initialized. Please configure FIREBASE_SERVICE_ACCOUNT or serviceAccountKey.json.' });
+    }
+    next();
+});
 
 // Helper: sort seasons numerically (e.g. "Season 10" before "Season 9" alphabetically).
 function sortSeasons(seasons) {
@@ -414,38 +419,18 @@ app.get('/global-leaderboard', async (req, res) => {
     }
 });
 
-// Serve static files (after API routes so APIs take precedence).
+// Serve static files in local/standalone mode (ignored in serverless Vercel if frontend is static)
+const frontendBuildSibling = path.join(__dirname, '..', 'leetflix-frontend', 'build');
+const backendBuild = path.join(__dirname, 'build');
+const staticPath = fs.existsSync(frontendBuildSibling) ? frontendBuildSibling : backendBuild;
 app.use(express.static(staticPath));
 
-// Catch-all: serve React's index.html for non-API GET requests so SPA routing works.
-const API_PREFIXES = ['/signup', '/login', '/admin-login', '/shows', '/quizzes', '/add-question', '/bulk-upload', '/submit-score', '/leaderboard', '/global-leaderboard'];
-app.use((req, res, next) => {
-    if (req.method !== 'GET') return next();
-    if (API_PREFIXES.some(p => req.path.startsWith(p))) return next();
-    res.sendFile(path.join(staticPath, 'index.html'), err => { if (err) next(err); });
-});
+// Export express app for serverless function platforms (Vercel)
+module.exports = app;
 
-app.listen(PORT, '0.0.0.0', () => {
-    const addresses = [];
-    for (const ifaces of Object.values(os.networkInterfaces())) {
-        for (const iface of ifaces) {
-            if (iface.family === 'IPv4' && !iface.internal) addresses.push(iface.address);
-        }
-    }
-    console.log(`Server running on http://localhost:${PORT}`);
-    if (addresses.length) {
-        console.log('LAN:', addresses.map(a => `http://${a}:${PORT}`).join('  '));
-    }
-});
-
-// Write PID file so external tools can stop this specific server process.
-try {
-    const pidPath = path.join(__dirname, 'backend.pid');
-    fs.writeFileSync(pidPath, String(process.pid), { encoding: 'utf8' });
-    const cleanup = () => { try { if (fs.existsSync(pidPath)) fs.unlinkSync(pidPath); } catch (_) {} };
-    process.on('exit', cleanup);
-    process.on('SIGINT', () => { cleanup(); process.exit(0); });
-    process.on('SIGTERM', () => { cleanup(); process.exit(0); });
-} catch (err) {
-    console.warn('Could not write PID file:', err && err.message);
+// Only listen on port if executed directly
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+    });
 }

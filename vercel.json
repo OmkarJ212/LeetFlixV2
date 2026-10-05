@@ -1,20 +1,28 @@
 {
-  "services": {
-    "frontend": {
-      "root": "leetflix-frontend"
+  "version": 2,
+  "builds": [
+    {
+      "src": "leetflix-frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
     },
-    "backend": {
-      "root": "leetflix-backend"
+    {
+      "src": "leetflix-backend/server.js",
+      "use": "@vercel/node"
     }
-  },
-  "rewrites": [
+  ],
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": { "service": "backend" }
+      "src": "/(shows|quizzes|signup|login|admin-login|add-question|bulk-upload|submit-score|leaderboard|global-leaderboard)(.*)",
+      "dest": "leetflix-backend/server.js"
     },
     {
-      "source": "/(.*)",
-      "destination": { "service": "frontend" }
+      "src": "/static/(.*)",
+      "dest": "leetflix-frontend/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "leetflix-frontend/$1"
     }
   ]
 }
