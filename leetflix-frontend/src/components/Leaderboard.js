@@ -5,10 +5,11 @@ const Leaderboard = ({ showName, onClose }) => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        const controller = new AbortController();
         const fetchLeaderboard = async () => {
             try {
                 const encodedName = encodeURIComponent(showName);
-                const response = await fetch(`/leaderboard/${encodedName}`);
+                const response = await fetch(`/leaderboard/${encodedName}`, { signal: controller.signal });
                 if (response.ok) {
                     const data = await response.json();
                     setLeaderboardData(data);
@@ -16,13 +17,17 @@ const Leaderboard = ({ showName, onClose }) => {
                     setLeaderboardData([]);
                 }
             } catch (error) {
-                console.error('Error fetching leaderboard:', error);
-                setLeaderboardData([]);
+                if (error.name !== 'AbortError') {
+                    console.error('Error fetching leaderboard:', error);
+                    setLeaderboardData([]);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
         fetchLeaderboard();
+
+        return () => controller.abort();
     }, [showName]);
 
     return (
@@ -51,4 +56,4 @@ const Leaderboard = ({ showName, onClose }) => {
     );
 };
 
-export default Leaderboard;
+export default React.memo(Leaderboard);

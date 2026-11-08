@@ -50,25 +50,27 @@ async function deleteQueryBatch(query, resolve) {
   });
 }
 
-// This is the main function to add quizzes to Firestore
+// Main function to add quizzes to Firestore in high-performance batch writes
 async function addQuizzes() {
   // First, empty the existing quizzes collection to prevent duplicates
   await deleteCollection('quizzes');
   
   console.log("Starting data insertion...");
   const quizzesRef = db.collection('quizzes');
+  const batch = db.batch();
   
-  // Now, add the new data from your data.js file
+  // Add new data with showName_lower in a single atomic batch
   for (const quizData of showsAndQuizzes) {
-    try {
-      // The `add` method will automatically assign a document ID
-      await quizzesRef.add(quizData);
-      console.log(`Successfully added quiz for: ${quizData.showName}`);
-    } catch (error) {
-      console.error(`Failed to add quiz for ${quizData.showName}:`, error);
-    }
+    const docRef = quizzesRef.doc();
+    const preparedData = {
+      ...quizData,
+      showName_lower: (quizData.showName || '').trim().toLowerCase()
+    };
+    batch.set(docRef, preparedData);
   }
 
+  await batch.commit();
+  console.log(`Successfully batch-inserted ${showsAndQuizzes.length} shows!`);
   console.log("Data insertion complete!");
 }
 

@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import Login from './Login';
-import QuestionForm from './components/QuestionForm';
-import BulkQuestionForm from './components/BulkQuestionForm';
-import Leaderboard from './components/Leaderboard';
-import SeasonSelection from './components/SeasonSelection';
-import GlobalLeaderboard from './components/GlobalLeaderboard';
-import { fetchShows, fetchQuizQuestions } from './mockApi';
+import { fetchShows, fetchQuizQuestions, clearApiCache } from './mockApi';
 import './App.css';
 
-// Module-scope shuffle so it isn't recreated on every render/call.
+// Lazy-load modal and administrative components to reduce initial bundle size
+const QuestionForm = lazy(() => import('./components/QuestionForm'));
+const BulkQuestionForm = lazy(() => import('./components/BulkQuestionForm'));
+const Leaderboard = lazy(() => import('./components/Leaderboard'));
+const SeasonSelection = lazy(() => import('./components/SeasonSelection'));
+const GlobalLeaderboard = lazy(() => import('./components/GlobalLeaderboard'));
+
+// Module-scope shuffle so it isn't recreated on every render/call
 function shuffleArray(arr) {
   const a = Array.isArray(arr) ? [...arr] : [];
   for (let i = a.length - 1; i > 0; i--) {
@@ -18,8 +20,35 @@ function shuffleArray(arr) {
   return a;
 }
 
-// MainApp is at module scope so React never treats it as a new component
-// type between renders of App, preventing full remounts and state loss.
+// Memoized individual ShowCard to prevent re-rendering all cards when search query changes
+const ShowCard = React.memo(function ShowCard({ show, onStartQuiz, onShowLeaderboard }) {
+  return (
+    <div className="show-card">
+      <div className="poster-wrapper">
+        <img
+          src={show.posterUrl}
+          alt={`${show.name} poster`}
+          loading="lazy"
+          decoding="async"
+          width="250"
+          height="370"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = '/fallback-poster.svg';
+          }}
+        />
+      </div>
+      <div className="card-info">
+        <h3 className="show-title">{show.name}</h3>
+        <div className="card-actions">
+          <button onClick={() => onShowLeaderboard(show.name)} className="view-leaderboard-btn">Leaderboard</button>
+          <button onClick={() => onStartQuiz(show)} className="start-quiz-btn">Select Season</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }) {
   const [allShows, setAllShows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,21 +69,27 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
     fetchShows().then(setAllShows).finally(() => setIsLoading(false));
   }, []);
 
-  const filteredShows = allShows.filter(show =>
-    show.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Memoized show filter to avoid O(N) array scans and card re-renders on keystrokes
+  const filteredShows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return allShows;
+    return allShows.filter(show => (show.name || '').toLowerCase().includes(query));
+  }, [allShows, searchQuery]);
 
-  const handleStartQuiz = (show) => {
+  const handleStartQuiz = useCallback((show) => {
     setSelectedShow(show);
     setIsSelectingSeason(true);
-  };
+  }, []);
 
-  const handleSelectSeason = async (showName, seasonName, randomize = false) => {
+  const handleShowLeaderboard = useCallback((name) => {
+    setShowLeaderboard(name);
+  }, []);
+
+  const handleSelectSeason = useCallback(async (showName, seasonName, randomize = false) => {
     const questions = await fetchQuizQuestions(showName, seasonName);
     const isAllQuestions = seasonName.toLowerCase() === 'all questions';
     const base = isAllQuestions ? questions : questions.slice(0, 10);
     const ordered = randomize ? shuffleArray(base) : base;
-    // Shuffle each question's options independently
     const withShuffledOptions = ordered.map(q => ({ ...q, options: shuffleArray(q.options || []) }));
     setQuizQuestions(withShuffledOptions);
     setIndex(0);
@@ -62,14 +97,20 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
     setSelectedSeason(seasonName);
     setQuizStarted(true);
     setIsSelectingSeason(false);
-  };
+  }, []);
 
-  const handleAnswer = (option) => {
-    if (option === quizQuestions[index].answer) setScore(s => s + 1);
+  const handleAnswer = useCallback((option) => {
+    setQuizQuestions((prevQuestions) => {
+      if (option === prevQuestions[index]?.answer) {
+        setScore(s => s + 1);
+      }
+      return prevQuestions;
+    });
     setIndex(i => i + 1);
-  };
+  }, [index]);
 
-  const submitScore = async () => {
+  const submitScore = useCallback(async () => {
+    if (!currentUser || !selectedShow || !selectedSeason) return;
     try {
       await fetch('/submit-score', {
         method: 'POST',
@@ -79,19 +120,21 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
     } catch (err) {
       console.error('Failed to submit score:', err);
     }
-  };
+  }, [currentUser, selectedShow, selectedSeason, score]);
 
-  const resetGame = () => {
-    if (quizStarted && selectedShow && currentUser) submitScore();
+  const resetGame = useCallback(async () => {
+    if (quizStarted && selectedShow && currentUser) {
+      await submitScore();
+    }
     setQuizStarted(false);
     setSelectedShow(null);
     setSelectedSeason(null);
     setQuizQuestions([]);
     setIndex(0);
     setScore(0);
-  };
+  }, [quizStarted, selectedShow, currentUser, submitScore]);
 
-  const handleAddQuizQuestion = async (newQuestion) => {
+  const handleAddQuizQuestion = useCallback(async (newQuestion) => {
     try {
       const response = await fetch('/add-question', {
         method: 'POST',
@@ -102,16 +145,17 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
       if (response.ok) {
         alert(data.message);
         setIsAddingQuestion(false);
-        fetchShows().then(setAllShows);
+        clearApiCache();
+        fetchShows(true).then(setAllShows);
       } else {
         alert(`Error: ${data.message}`);
       }
     } catch {
       alert('Failed to add question. Server might not be running.');
     }
-  };
+  }, []);
 
-  const handleBulkUpload = async (questions) => {
+  const handleBulkUpload = useCallback(async (questions) => {
     try {
       const response = await fetch('/bulk-upload', {
         method: 'POST',
@@ -122,31 +166,53 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
       if (response.ok) {
         alert(data.message);
         setIsBulkUploading(false);
-        fetchShows().then(setAllShows);
+        clearApiCache();
+        fetchShows(true).then(setAllShows);
       } else {
         alert(`Error: ${data.message}`);
       }
     } catch {
       alert('Bulk upload failed. Server might not be running.');
     }
-  };
+  }, []);
 
-  // --- Conditional views ---
+  // --- Suspense-wrapped lazy conditional views ---
+  const modalFallback = <div className="modal-overlay"><div className="modal-content"><p>Loading...</p></div></div>;
 
   if (showGlobalLeaderboard) {
-    return <GlobalLeaderboard onClose={() => setShowGlobalLeaderboard(false)} />;
+    return (
+      <Suspense fallback={modalFallback}>
+        <GlobalLeaderboard onClose={() => setShowGlobalLeaderboard(false)} />
+      </Suspense>
+    );
   }
   if (isAddingQuestion) {
-    return <QuestionForm onAddQuestion={handleAddQuizQuestion} onCancel={() => setIsAddingQuestion(false)} allShows={allShows} />;
+    return (
+      <Suspense fallback={modalFallback}>
+        <QuestionForm onAddQuestion={handleAddQuizQuestion} onCancel={() => setIsAddingQuestion(false)} allShows={allShows} />
+      </Suspense>
+    );
   }
   if (isBulkUploading) {
-    return <BulkQuestionForm onBulkUpload={handleBulkUpload} onCancel={() => setIsBulkUploading(false)} />;
+    return (
+      <Suspense fallback={modalFallback}>
+        <BulkQuestionForm onBulkUpload={handleBulkUpload} onCancel={() => setIsBulkUploading(false)} />
+      </Suspense>
+    );
   }
   if (showLeaderboard) {
-    return <Leaderboard showName={showLeaderboard} onClose={() => setShowLeaderboard(null)} />;
+    return (
+      <Suspense fallback={modalFallback}>
+        <Leaderboard showName={showLeaderboard} onClose={() => setShowLeaderboard(null)} />
+      </Suspense>
+    );
   }
   if (isSelectingSeason) {
-    return <SeasonSelection show={selectedShow} onSelectSeason={handleSelectSeason} onBack={() => setIsSelectingSeason(false)} />;
+    return (
+      <Suspense fallback={<div className="quiz-page-container"><h2>Loading Seasons...</h2></div>}>
+        <SeasonSelection show={selectedShow} onSelectSeason={handleSelectSeason} onBack={() => setIsSelectingSeason(false)} />
+      </Suspense>
+    );
   }
 
   if (quizStarted) {
@@ -159,8 +225,15 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
         <div className="quiz-page-container">
           <div className="fixed-poster">
             <div className="poster-wrapper small-poster">
-              <img src={selectedShow.posterUrl} alt={`${selectedShow.name} poster`}
-                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }} />
+              <img
+                src={selectedShow.posterUrl}
+                alt={`${selectedShow.name} poster`}
+                loading="lazy"
+                decoding="async"
+                width="250"
+                height="370"
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }}
+              />
             </div>
           </div>
           <div className="quiz-container">
@@ -175,8 +248,15 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
       <div className="quiz-page-container">
         <div className="fixed-poster">
           <div className="poster-wrapper small-poster">
-            <img src={selectedShow.posterUrl} alt={`${selectedShow.name} poster`}
-              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }} />
+            <img
+              src={selectedShow.posterUrl}
+              alt={`${selectedShow.name} poster`}
+              loading="lazy"
+              decoding="async"
+              width="250"
+              height="370"
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }}
+            />
           </div>
         </div>
         <div className="quiz-container">
@@ -240,19 +320,12 @@ function MainApp({ currentUser, isAdmin, isDarkMode, handleLogout, toggleTheme }
             <p className="loading-message">Loading shows...</p>
           ) : filteredShows.length > 0 ? (
             filteredShows.map((show) => (
-              <div key={show.id} className="show-card">
-                <div className="poster-wrapper">
-                  <img src={show.posterUrl} alt={`${show.name} poster`}
-                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/fallback-poster.svg'; }} />
-                </div>
-                <div className="card-info">
-                  <h3 className="show-title">{show.name}</h3>
-                  <div className="card-actions">
-                    <button onClick={() => setShowLeaderboard(show.name)} className="view-leaderboard-btn">Leaderboard</button>
-                    <button onClick={() => handleStartQuiz(show)} className="start-quiz-btn">Select Season</button>
-                  </div>
-                </div>
-              </div>
+              <ShowCard
+                key={show.id}
+                show={show}
+                onStartQuiz={handleStartQuiz}
+                onShowLeaderboard={handleShowLeaderboard}
+              />
             ))
           ) : (
             <p className="loading-message">No shows found.</p>

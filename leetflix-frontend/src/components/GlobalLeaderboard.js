@@ -5,9 +5,10 @@ const GlobalLeaderboard = ({ onClose }) => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        const controller = new AbortController();
         const fetchGlobalLeaderboard = async () => {
             try {
-                const response = await fetch('/global-leaderboard');
+                const response = await fetch('/global-leaderboard', { signal: controller.signal });
                 if (response.ok) {
                     const data = await response.json();
                     setLeaderboardData(data);
@@ -15,13 +16,17 @@ const GlobalLeaderboard = ({ onClose }) => {
                     setLeaderboardData([]);
                 }
             } catch (error) {
-                console.error('Error fetching global leaderboard:', error);
-                setLeaderboardData([]);
+                if (error.name !== 'AbortError') {
+                    console.error('Error fetching global leaderboard:', error);
+                    setLeaderboardData([]);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
         fetchGlobalLeaderboard();
+
+        return () => controller.abort();
     }, []);
 
     return (
@@ -50,4 +55,4 @@ const GlobalLeaderboard = ({ onClose }) => {
     );
 };
 
-export default GlobalLeaderboard;
+export default React.memo(GlobalLeaderboard);

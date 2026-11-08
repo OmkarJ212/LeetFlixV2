@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const admin = require('firebase-admin');
 const cors = require('cors');
+const compression = require('compression');
 const bcrypt = require('bcryptjs');
 
 let serviceAccount;
@@ -30,8 +31,34 @@ const PORT = process.env.PORT || 3001;
 
 const ADMIN_KEY = process.env.ADMIN_KEY || 'your-secret-admin-key';
 
+// --- High-Performance In-Memory Cache Layer ---
+let cachedShowsList = null;
+let cachedShowsListExpiry = 0;
+const cachedQuizMap = new Map();
+const cachedLeaderboards = new Map();
+let cachedGlobalLeaderboard = null;
+let cachedGlobalLeaderboardExpiry = 0;
+
+function invalidateShowsCache() {
+    cachedShowsList = null;
+    cachedShowsListExpiry = 0;
+    cachedQuizMap.clear();
+}
+
+function invalidateScoreCaches(showName) {
+    if (showName) {
+        cachedLeaderboards.delete(showName.trim().toLowerCase());
+    } else {
+        cachedLeaderboards.clear();
+    }
+    cachedGlobalLeaderboard = null;
+    cachedGlobalLeaderboardExpiry = 0;
+}
+
+// Enable response compression (gzip / brotli) for all responses
+app.use(compression());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Middleware to ensure DB is initialized
 app.use((req, res, next) => {
@@ -55,23 +82,52 @@ function sortSeasons(seasons) {
     });
 }
 
-// Helper: find a show document by case-insensitive name. Returns { id, ref, data } or null.
+// Helper: find a show document. Fast indexed lookup by showName_lower with self-healing fallback.
 async function findShowDoc(quizzesRef, normalizedName) {
+    // 1. Direct document lookup by ID if keyed by slug
+    try {
+        const directDoc = await quizzesRef.doc(normalizedName).get();
+        if (directDoc.exists) {
+            return { id: directDoc.id, ref: directDoc.ref, data: directDoc.data() };
+        }
+    } catch {
+        // Continue to query if doc ID has special characters
+    }
+
+    // 2. Fast indexed query by showName_lower
+    const indexedQuery = await quizzesRef.where('showName_lower', '==', normalizedName).limit(1).get();
+    if (!indexedQuery.empty) {
+        const doc = indexedQuery.docs[0];
+        return { id: doc.id, ref: doc.ref, data: doc.data() };
+    }
+
+    // 3. Fallback scan for legacy documents that don't have showName_lower yet
     const snapshot = await quizzesRef.get();
     for (const doc of snapshot.docs) {
         const data = doc.data();
         if (data && data.showName && data.showName.trim().toLowerCase() === normalizedName) {
+            // Self-heal: backfill showName_lower asynchronously so all future lookups are indexed
+            doc.ref.update({ showName_lower: normalizedName }).catch(() => {});
             return { id: doc.id, ref: doc.ref, data, snapshot };
         }
     }
     return { id: null, ref: null, data: null, snapshot };
 }
 
-// Fetches a list of shows including their seasons.
+// Fetches a list of shows including their seasons (Cached with HTTP Cache-Control).
 app.get('/shows', async (req, res) => {
     try {
+        if (cachedShowsList && Date.now() < cachedShowsListExpiry) {
+            res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+            return res.status(200).json(cachedShowsList);
+        }
+
         const snapshot = await db.collection('quizzes').get();
-        if (snapshot.empty) return res.status(200).json([]);
+        if (snapshot.empty) {
+            cachedShowsList = [];
+            cachedShowsListExpiry = Date.now() + 30000;
+            return res.status(200).json([]);
+        }
 
         const showsList = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -83,6 +139,11 @@ app.get('/shows', async (req, res) => {
                 seasons: sortedSeasons.map(s => ({ seasonName: s.seasonName, questionCount: (s.questions || []).length }))
             };
         });
+
+        cachedShowsList = showsList;
+        cachedShowsListExpiry = Date.now() + 60000; // 60s memory TTL
+
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
         res.status(200).json(showsList);
     } catch (error) {
         console.error('Error fetching shows:', error);
@@ -90,32 +151,35 @@ app.get('/shows', async (req, res) => {
     }
 });
 
-// Fetches quiz questions for a specific show and season.
+// Fetches quiz questions for a specific show and season (Cached).
 app.get('/quizzes/:showName/:seasonName', async (req, res) => {
     try {
         const normalizedShow = decodeURIComponent(req.params.showName).trim().toLowerCase();
         const normalizedSeason = decodeURIComponent(req.params.seasonName).trim().toLowerCase();
+        const cacheKey = `${normalizedShow}::${normalizedSeason}`;
+
+        const cached = cachedQuizMap.get(cacheKey);
+        if (cached && Date.now() < cached.expiry) {
+            res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+            return res.status(200).json(cached.data);
+        }
+
         const quizzesRef = db.collection('quizzes');
+        const { data: foundDoc } = await findShowDoc(quizzesRef, normalizedShow);
+
+        if (!foundDoc) {
+            return res.status(404).json({ message: 'No quiz found for this show.' });
+        }
 
         // "All Questions" — aggregate across all seasons of the matched show.
         if (normalizedSeason === 'all questions') {
-            const snapshot = await quizzesRef.get();
             let allQuestions = [];
-            for (const doc of snapshot.docs) {
-                const data = doc.data();
-                if (data && data.showName && data.showName.trim().toLowerCase() === normalizedShow) {
-                    for (const season of (data.seasons || [])) {
-                        allQuestions = allQuestions.concat(season.questions || []);
-                    }
-                    break; // show names are unique
-                }
+            for (const season of (foundDoc.seasons || [])) {
+                allQuestions = allQuestions.concat(season.questions || []);
             }
+            cachedQuizMap.set(cacheKey, { data: allQuestions, expiry: Date.now() + 300000 }); // 5 min TTL
+            res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
             return res.status(200).json(allQuestions);
-        }
-
-        const { data: foundDoc } = await findShowDoc(quizzesRef, normalizedShow);
-        if (!foundDoc) {
-            return res.status(404).json({ message: 'No quiz found for this show.' });
         }
 
         const season = (foundDoc.seasons || []).find(
@@ -125,14 +189,17 @@ app.get('/quizzes/:showName/:seasonName', async (req, res) => {
             return res.status(404).json({ message: `No quiz found for season: ${req.params.seasonName}` });
         }
 
-        res.status(200).json(season.questions || []);
+        const questions = season.questions || [];
+        cachedQuizMap.set(cacheKey, { data: questions, expiry: Date.now() + 300000 }); // 5 min TTL
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        res.status(200).json(questions);
     } catch (error) {
         console.error('Error fetching quiz:', error);
         res.status(500).json({ message: 'Internal server error.' });
     }
 });
 
-// Handles user signup.
+// Handles user signup (Indexed doc ID lookup & point write).
 app.post('/signup', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -140,12 +207,23 @@ app.post('/signup', async (req, res) => {
             return res.status(400).json({ message: 'Username and password are required.' });
         }
         const usersRef = db.collection('users');
-        const existing = await usersRef.where('username', '==', username).get();
+        const normalizedUsername = username.trim().toLowerCase();
+        const userDocRef = usersRef.doc(normalizedUsername);
+
+        // Fast document read by ID first
+        const docSnap = await userDocRef.get();
+        if (docSnap.exists) {
+            return res.status(400).json({ message: 'Username already exists.' });
+        }
+
+        // Fallback check legacy documents with auto-generated IDs
+        const existing = await usersRef.where('username', '==', username).limit(1).get();
         if (!existing.empty) {
             return res.status(400).json({ message: 'Username already exists.' });
         }
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        await usersRef.add({ username, password: hashedPassword, isAdmin: false });
+        await userDocRef.set({ username, username_lower: normalizedUsername, password: hashedPassword, isAdmin: false });
         res.status(201).json({ message: 'User created successfully!' });
     } catch (error) {
         console.error('Error in signup:', error);
@@ -153,18 +231,30 @@ app.post('/signup', async (req, res) => {
     }
 });
 
-// Handles regular user login.
+// Handles regular user login (Fast doc lookup).
 app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password are required.' });
         }
-        const snapshot = await db.collection('users').where('username', '==', username).get();
-        if (snapshot.empty) {
-            return res.status(401).json({ message: 'Invalid username or password.' });
+        const usersRef = db.collection('users');
+        const normalizedUsername = username.trim().toLowerCase();
+
+        let userDoc = await usersRef.doc(normalizedUsername).get();
+        let userData;
+
+        if (userDoc.exists) {
+            userData = userDoc.data();
+        } else {
+            // Legacy fallback
+            const snapshot = await usersRef.where('username', '==', username).limit(1).get();
+            if (snapshot.empty) {
+                return res.status(401).json({ message: 'Invalid username or password.' });
+            }
+            userData = snapshot.docs[0].data();
         }
-        const userData = snapshot.docs[0].data();
+
         if (!await bcrypt.compare(password, userData.password)) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
@@ -175,7 +265,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Handles admin login.
+// Handles admin login (Fast doc lookup).
 app.post('/admin-login', async (req, res) => {
     try {
         const { username, password, adminKey } = req.body;
@@ -186,16 +276,28 @@ app.post('/admin-login', async (req, res) => {
             return res.status(401).json({ message: 'Invalid admin key.' });
         }
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', username).get();
-        if (snapshot.empty) {
-            return res.status(401).json({ message: 'Invalid username or password.' });
+        const normalizedUsername = username.trim().toLowerCase();
+
+        let userDoc = await usersRef.doc(normalizedUsername).get();
+        let userData;
+        let targetRef;
+
+        if (userDoc.exists) {
+            userData = userDoc.data();
+            targetRef = userDoc.ref;
+        } else {
+            const snapshot = await usersRef.where('username', '==', username).limit(1).get();
+            if (snapshot.empty) {
+                return res.status(401).json({ message: 'Invalid username or password.' });
+            }
+            userData = snapshot.docs[0].data();
+            targetRef = snapshot.docs[0].ref;
         }
-        const userDoc = snapshot.docs[0];
-        const userData = userDoc.data();
+
         if (!await bcrypt.compare(password, userData.password)) {
             return res.status(401).json({ message: 'Invalid username or password.' });
         }
-        await usersRef.doc(userDoc.id).update({ isAdmin: true });
+        await targetRef.update({ isAdmin: true });
         res.status(200).json({ message: 'Admin login successful!', username: userData.username, isAdmin: true });
     } catch (error) {
         console.error('Error in admin login:', error);
@@ -222,9 +324,11 @@ app.post('/add-question', async (req, res) => {
             }
             await quizzesRef.add({
                 showName,
+                showName_lower: normalizedShowName,
                 posterUrl,
                 seasons: [{ seasonName, questions: [{ question, options, answer }] }]
             });
+            invalidateShowsCache();
             return res.status(201).json({ message: `Show '${showName}' and its first question added successfully!` });
         }
 
@@ -247,8 +351,9 @@ app.post('/add-question', async (req, res) => {
                 } else {
                     seasons.push({ seasonName, questions: [{ question, options, answer }] });
                 }
-                t.update(existingRef, { seasons });
+                t.update(existingRef, { seasons, showName_lower: normalizedShowName });
             });
+            invalidateShowsCache();
         } catch (txErr) {
             if (txErr && txErr.code === 'DUPLICATE_QUESTION') {
                 return res.status(409).json({ message: 'This question already exists for this show and season.' });
@@ -264,7 +369,7 @@ app.post('/add-question', async (req, res) => {
     }
 });
 
-// Bulk-upload an array of questions in a single Firestore batch.
+// Bulk-upload an array of questions in chunked Firestore batches.
 app.post('/bulk-upload', async (req, res) => {
     try {
         const { questions } = req.body;
@@ -273,7 +378,6 @@ app.post('/bulk-upload', async (req, res) => {
         }
 
         const quizzesRef = db.collection('quizzes');
-        const batch = db.batch();
 
         // Preload existing shows for case-insensitive matching.
         const existingSnapshot = await quizzesRef.get();
@@ -300,8 +404,8 @@ app.post('/bulk-upload', async (req, res) => {
             if (!showsToUpdate[normalized]) {
                 const existing = existingShowsMap[normalized];
                 showsToUpdate[normalized] = existing
-                    ? { docRef: existing.docRef, data: JSON.parse(JSON.stringify(existing.data)), isNew: false }
-                    : { docRef: quizzesRef.doc(), data: { showName, posterUrl, seasons: [] }, isNew: true };
+                    ? { docRef: existing.docRef, data: { ...existing.data, seasons: (existing.data.seasons || []).map(s => ({ ...s, questions: [...(s.questions || [])] })) }, isNew: false }
+                    : { docRef: quizzesRef.doc(), data: { showName, showName_lower: normalized, posterUrl, seasons: [] }, isNew: true };
             }
 
             const existingData = showsToUpdate[normalized].data;
@@ -322,15 +426,24 @@ app.post('/bulk-upload', async (req, res) => {
             existingData.seasons = seasons;
         }
 
-        for (const { docRef, data, isNew } of Object.values(showsToUpdate)) {
-            if (isNew) {
-                batch.set(docRef, data);
-            } else {
-                batch.update(docRef, { seasons: data.seasons });
+        // Commit in chunks of 400 operations to stay well below Firestore 500-op batch limit
+        const entries = Object.values(showsToUpdate);
+        const BATCH_SIZE = 400;
+        for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+            const batch = db.batch();
+            const chunk = entries.slice(i, i + BATCH_SIZE);
+            for (const { docRef, data, isNew } of chunk) {
+                if (isNew) {
+                    batch.set(docRef, data);
+                } else {
+                    batch.update(docRef, { seasons: data.seasons, showName_lower: data.showName ? data.showName.trim().toLowerCase() : undefined });
+                }
             }
+            await batch.commit();
         }
 
-        await batch.commit();
+        invalidateShowsCache();
+
         const processedCount = questions.length - duplicateCount;
         res.status(201).json({
             message: `Bulk upload successful! Processed ${processedCount} items (${duplicateCount} duplicates skipped).`
@@ -355,6 +468,8 @@ app.post('/submit-score', async (req, res) => {
             score,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        invalidateScoreCaches(showName);
         res.status(201).json({ message: 'Score submitted successfully!' });
     } catch (error) {
         console.error('Error submitting score:', error);
@@ -362,10 +477,17 @@ app.post('/submit-score', async (req, res) => {
     }
 });
 
-// Fetches the top 10 scores for a given show.
+// Fetches the top 10 scores for a given show (Cached).
 app.get('/leaderboard/:showName', async (req, res) => {
     try {
         const showName = decodeURIComponent(req.params.showName);
+        const cacheKey = showName.trim().toLowerCase();
+
+        const cached = cachedLeaderboards.get(cacheKey);
+        if (cached && Date.now() < cached.expiry) {
+            return res.status(200).json(cached.data);
+        }
+
         const snapshot = await db.collection('scores')
             .where('showName', '==', showName)
             .orderBy('score', 'desc')
@@ -375,16 +497,23 @@ app.get('/leaderboard/:showName', async (req, res) => {
         if (snapshot.empty) {
             return res.status(404).json({ message: 'No scores found for this show yet.' });
         }
-        res.status(200).json(snapshot.docs.map(doc => doc.data()));
+
+        const results = snapshot.docs.map(doc => doc.data());
+        cachedLeaderboards.set(cacheKey, { data: results, expiry: Date.now() + 30000 }); // 30s TTL
+        res.status(200).json(results);
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
         res.status(500).json({ message: 'Failed to fetch leaderboard.' });
     }
 });
 
-// Fetches the global leaderboard: best score per user per quiz, summed across all quizzes.
+// Fetches the global leaderboard with 30s TTL memory caching.
 app.get('/global-leaderboard', async (req, res) => {
     try {
+        if (cachedGlobalLeaderboard && Date.now() < cachedGlobalLeaderboardExpiry) {
+            return res.status(200).json(cachedGlobalLeaderboard);
+        }
+
         const snapshot = await db.collection('scores').get();
         if (snapshot.empty) return res.status(200).json([]);
 
@@ -412,6 +541,9 @@ app.get('/global-leaderboard', async (req, res) => {
             .map(([username, globalScore]) => ({ username, globalScore }))
             .sort((a, b) => b.globalScore - a.globalScore);
 
+        cachedGlobalLeaderboard = leaderboard;
+        cachedGlobalLeaderboardExpiry = Date.now() + 30000; // 30s memory TTL
+
         res.status(200).json(leaderboard);
     } catch (error) {
         console.error('Error fetching global leaderboard:', error);
@@ -419,11 +551,14 @@ app.get('/global-leaderboard', async (req, res) => {
     }
 });
 
-// Serve static files in local/standalone mode (ignored in serverless Vercel if frontend is static)
+// Serve static files with 1-day caching headers
 const frontendBuildSibling = path.join(__dirname, '..', 'leetflix-frontend', 'build');
 const backendBuild = path.join(__dirname, 'build');
 const staticPath = fs.existsSync(frontendBuildSibling) ? frontendBuildSibling : backendBuild;
-app.use(express.static(staticPath));
+app.use(express.static(staticPath, {
+    maxAge: '1d',
+    etag: true
+}));
 
 // Export express app for serverless function platforms (Vercel)
 module.exports = app;
